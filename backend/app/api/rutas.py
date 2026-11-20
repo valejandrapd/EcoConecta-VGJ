@@ -1,78 +1,236 @@
-"""API interna mínima (protegida con SERVICE_API_KEY en la cabecera X-Service-Key).
+"""API del backend para la web (solicitante, coordinadores, recolectores y administrador).
 
-Supuesto: la web y la autenticación de usuarios de la especificación principal se conectan aquí.
+Autenticación: `Authorization: Bearer <token>` (ver /api/auth/login). Para integraciones internas
+también se acepta `X-Service-Key` (SERVICE_API_KEY) + `X-Usuario-Id`. Cada ruta valida el perfil
+(sección 5.1 del reto).
 """
 import hmac
-from datetime import date, time
+from datetime import date, datetime, time, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 
-from .. import solicitudes, telefono
+from .. import auth
+from .. import solicitudes as negocio
+from .. import telefono
 from ..config import config
 from ..db import sesion
 from ..ia import cascada
 from ..ia.modelo import IANoDisponible
-from ..models import CasoCoordinacion, Usuario
+from ..models import (COORDINADOR_DE_FLUJO, FLUJO_DE_ROL, CasoCoordinacion, HistorialSolicitud, Solicitud,
+                      Usuario)
 from ..whatsapp.mensajeria import purgar_vencidos
 
 
-def clave_servicio(x_service_key: str = Header("")):
+def actor_id(authorization: str = Header(""), x_service_key: str = Header(""),
+             x_usuario_id: int | None = Header(None)) -> int:
+    if authorization.startswith("Bearer "):
+        try:
+            return auth.leer_token(authorization.removeprefix("Bearer ").strip())
+        except auth.TokenInvalido as e:
+            raise HTTPException(401, "Sesión inválida o vencida") from e
     esperada = config().service_api_key
-    if not esperada or not hmac.compare_digest(x_service_key, esperada):
-        raise HTTPException(401, "Clave de servicio inválida")
+    if esperada and x_usuario_id and hmac.compare_digest(x_service_key, esperada):
+        return x_usuario_id
+    raise HTTPException(401, "Inicia sesión")
 
 
-router = APIRouter(prefix="/api", dependencies=[Depends(clave_servicio)])
+router = APIRouter(prefix="/api")
 
 
+def _actor(s, x_usuario_id: int) -> Usuario:
+    u = s.get(Usuario, x_usuario_id)
+    if not u or not u.activo:
+        raise HTTPException(401, "Usuario no válido")
+    return u
+
+
+def _errores(fn):
+    try:
+        return fn()
+    except negocio.SinPermiso as e:
+        raise HTTPException(403, str(e)) from e
+    except negocio.ErrorSolicitud as e:
+        raise HTTPException(400 if "No existe" not in str(e) else 404, str(e)) from e
+
+
+def _sol(sol: Solicitud, actor: Usuario) -> dict:
+    d = {"codigo": sol.codigo, "flujo": sol.flujo, "tipo_generador": sol.tipo_generador, "estado": sol.estado,
+         "observaciones": sol.observaciones, "disponibilidad": sol.disponibilidad,
+         "fecha_programada": sol.fecha_programada, "hora_programada": sol.hora_programada,
+         "recolector": sol.recolector.nombre if sol.recolector else None,
+         "coordinador": sol.coordinador.nombre if sol.coordinador else None,
+         "puntos": sol.recoleccion.puntos if sol.recoleccion else None, "creada_en": sol.creada_en}
+    if negocio.puede_ver_contacto(actor, sol):  # RN-07
+        d["contacto"] = {"nombre": sol.usuario.nombre, "telefono": sol.usuario.telefono, "direccion": sol.direccion}
+    return d
+
+
+def _ver(s, codigo: str, actor: Usuario) -> Solicitud:
+    sol = _errores(lambda: negocio.obtener(s, codigo))
+    if not negocio.puede_ver_contacto(actor, sol) and actor.rol != "administrador":
+        raise HTTPException(404, "No existe esa solicitud")
+    return sol
+
+
+# --------------------------------------------------------------- solicitante
 class NuevaSolicitud(BaseModel):
-    telefono: str
     flujo: str
-    descripcion: str = ""
+    tipo_generador: str | None = None
     direccion: str | None = None
+    disponibilidad: str | None = None
+    observaciones: str = ""
+
+
+@router.post("/solicitudes", status_code=201)
+def crear_solicitud(d: NuevaSolicitud, uid: int = Depends(actor_id)):
+    with sesion() as s:
+        actor = _actor(s, uid)
+        sol = _errores(lambda: negocio.crear(s, actor, d.flujo, tipo_generador=d.tipo_generador,
+                                             observaciones=d.observaciones, direccion=d.direccion,
+                                             disponibilidad=d.disponibilidad))
+        return _sol(sol, actor)
+
+
+@router.get("/solicitudes/{codigo}")
+def ver_solicitud(codigo: str, uid: int = Depends(actor_id)):
+    with sesion() as s:
+        actor = _actor(s, uid)
+        return _sol(_ver(s, codigo, actor), actor)
+
+
+@router.get("/solicitudes/{codigo}/historial")
+def historial(codigo: str, uid: int = Depends(actor_id)):
+    with sesion() as s:
+        sol = _ver(s, codigo, _actor(s, uid))
+        filas = s.scalars(select(HistorialSolicitud).where(HistorialSolicitud.solicitud_id == sol.id)
+                          .order_by(HistorialSolicitud.id)).all()
+        return [{"de": h.estado_anterior, "a": h.estado_nuevo, "nota": h.nota, "en": h.creado_en} for h in filas]
+
+
+@router.get("/mis-solicitudes")
+def mis_solicitudes(uid: int = Depends(actor_id)):
+    with sesion() as s:
+        actor = _actor(s, uid)
+        sols = s.scalars(select(Solicitud).where(Solicitud.usuario_id == actor.id).order_by(Solicitud.id.desc())).all()
+        return {"puntos": negocio.puntos_de(s, actor.id), "solicitudes": [_sol(x, actor) for x in sols]}
+
+
+# --------------------------------------------------------------- coordinación
+@router.get("/bandeja")
+def bandeja(estado: str | None = None, uid: int = Depends(actor_id)):
+    """Bandeja del coordinador: solo las solicitudes de SU colectivo (RN-01)."""
+    with sesion() as s:
+        actor = _actor(s, uid)
+        if actor.rol not in COORDINADOR_DE_FLUJO.values() and actor.rol != "administrador":
+            raise HTTPException(403, "Solo coordinadores")
+        q = select(Solicitud)
+        if actor.rol != "administrador":
+            q = q.where(Solicitud.flujo == FLUJO_DE_ROL[actor.rol])
+        if estado:
+            q = q.where(Solicitud.estado == estado)
+        sols = s.scalars(q.order_by(Solicitud.id.desc()).limit(300)).all()
+        casos = s.scalars(select(CasoCoordinacion).where(
+            CasoCoordinacion.estado == "abierto",
+            CasoCoordinacion.flujo.in_([actor.flujo, "general"]) if actor.flujo else True)).all()
+        return {"solicitudes": [_sol(x, actor) for x in sols],
+                "casos_whatsapp": [{"id": c.id, "flujo": c.flujo, "motivo": c.motivo, "resumen": c.resumen,
+                                    "usuario": c.usuario.nombre if c.usuario else None, "creado_en": c.creado_en}
+                                   for c in casos]}
+
+
+class Asignacion(BaseModel):
+    recolector_id: int
 
 
 class Programacion(BaseModel):
     fecha: date
     hora: time
-    encargado_id: int | None = None
 
 
-class Consulta(BaseModel):
-    texto: str
+class RegistroRecoleccion(BaseModel):
+    cantidad_kg: Decimal = Field(gt=0, le=10000)
+    observaciones: str | None = None
 
 
-def _sol(sol):
-    return {"codigo": sol.codigo, "flujo": sol.flujo, "estado": sol.estado,
-            "fecha_programada": sol.fecha_programada, "hora_programada": sol.hora_programada}
+class Cancelacion(BaseModel):
+    motivo: str | None = None
 
 
-@router.post("/solicitudes", status_code=201)
-def crear_solicitud(d: NuevaSolicitud):
+def _accion(codigo, uid, fn):
     with sesion() as s:
-        u = s.scalar(select(Usuario).where(Usuario.telefono == telefono.normalizar(d.telefono)))
-        if not u:
-            raise HTTPException(404, "Usuario no registrado")
-        try:
-            return _sol(solicitudes.crear(s, u, d.flujo, d.descripcion, d.direccion))
-        except solicitudes.ErrorSolicitud as e:
-            raise HTTPException(400, str(e)) from e
+        actor = _actor(s, uid)
+        sol = _errores(lambda: negocio.obtener(s, codigo))
+        _errores(lambda: fn(s, sol, actor))
+        s.flush()
+        s.refresh(sol)
+        return _sol(sol, actor)
+
+
+@router.post("/solicitudes/{codigo}/revisar")
+def revisar(codigo: str, uid: int = Depends(actor_id)):
+    return _accion(codigo, uid, lambda s, sol, a: negocio.revisar(s, sol, a))
+
+
+@router.post("/solicitudes/{codigo}/asignar")
+def asignar(codigo: str, d: Asignacion, uid: int = Depends(actor_id)):
+    return _accion(codigo, uid, lambda s, sol, a: negocio.asignar(s, sol, a, d.recolector_id))
 
 
 @router.post("/solicitudes/{codigo}/programar")
-def programar(codigo: str, d: Programacion):
+def programar(codigo: str, d: Programacion, uid: int = Depends(actor_id)):
+    return _accion(codigo, uid, lambda s, sol, a: negocio.programar(s, sol, a, d.fecha, d.hora))
+
+
+@router.post("/solicitudes/{codigo}/recoleccion")
+def recoleccion(codigo: str, d: RegistroRecoleccion, uid: int = Depends(actor_id)):
+    return _accion(codigo, uid,
+                   lambda s, sol, a: negocio.registrar_recoleccion(s, sol, a, d.cantidad_kg, d.observaciones))
+
+
+@router.post("/solicitudes/{codigo}/cancelar")
+def cancelar(codigo: str, d: Cancelacion, uid: int = Depends(actor_id)):
+    return _accion(codigo, uid, lambda s, sol, a: negocio.cancelar(s, sol, a, d.motivo))
+
+
+@router.get("/asignaciones")
+def asignaciones(uid: int = Depends(actor_id)):
+    """Huertero o reciclador: sus solicitudes asignadas o programadas."""
     with sesion() as s:
-        try:
-            return _sol(solicitudes.programar(s, codigo.upper(), d.fecha, d.hora, d.encargado_id))
-        except solicitudes.ErrorSolicitud as e:
-            raise HTTPException(404, str(e)) from e
+        actor = _actor(s, uid)
+        sols = s.scalars(select(Solicitud).where(Solicitud.recolector_id == actor.id,
+                                                 Solicitud.estado.in_(["asignada", "programada"]))
+                         .order_by(Solicitud.fecha_programada)).all()
+        return [_sol(x, actor) for x in sols]
+
+
+@router.get("/resumen")
+def resumen(desde: date | None = None, hasta: date | None = None, uid: int = Depends(actor_id)):
+    """Resumen básico por flujo, estado y periodo (sección 5.6)."""
+    with sesion() as s:
+        actor = _actor(s, uid)
+        if actor.rol not in COORDINADOR_DE_FLUJO.values() and actor.rol != "administrador":
+            raise HTTPException(403, "Solo coordinadores o administrador")
+        q = select(Solicitud.flujo, Solicitud.estado, func.count()).group_by(Solicitud.flujo, Solicitud.estado)
+        if actor.rol != "administrador":
+            q = q.where(Solicitud.flujo == actor.flujo)
+        if desde:
+            q = q.where(Solicitud.creada_en >= datetime.combine(desde, time.min, timezone.utc))
+        if hasta:
+            q = q.where(Solicitud.creada_en <= datetime.combine(hasta, time.max, timezone.utc))
+        return [{"flujo": f, "estado": e, "total": n} for f, e, n in s.execute(q)]
+
+
+# --------------------------------------------------------------- IA y mantenimiento
+class Consulta(BaseModel):
+    texto: str = Field(max_length=500)
 
 
 @router.post("/ia/sugerir")
-def sugerir(d: Consulta):
-    """Sugerencia para la web (solo texto). No crea nada."""
+def sugerir(d: Consulta, uid: int = Depends(actor_id)):
+    """Sugerencia orientativa para el formulario web. No crea ni modifica nada."""
     try:
         sug = cascada.sugerir_texto(d.texto)
     except IANoDisponible as e:
@@ -80,18 +238,9 @@ def sugerir(d: Consulta):
     return {"categoria": sug.categoria, "confianza": sug.confianza, "origen": sug.origen, "flujos": sug.flujos}
 
 
-@router.get("/bandeja")
-def bandeja(flujo: str | None = None, estado: str = "abierto"):
-    with sesion() as s:
-        q = select(CasoCoordinacion).where(CasoCoordinacion.estado == estado)
-        if flujo:
-            q = q.where(CasoCoordinacion.flujo.in_([flujo, "general"]))
-        casos = s.scalars(q.order_by(CasoCoordinacion.id.desc()).limit(200)).all()
-        return [{"id": c.id, "flujo": c.flujo, "motivo": c.motivo, "resumen": c.resumen,
-                 "usuario": c.usuario.nombre if c.usuario else None, "creado_en": c.creado_en} for c in casos]
-
-
 @router.post("/mantenimiento/purgar-mensajes")
-def purgar():
+def purgar(uid: int = Depends(actor_id)):
     with sesion() as s:
+        if _actor(s, uid).rol != "administrador":
+            raise HTTPException(403, "Solo el administrador")
         return {"borrados": purgar_vencidos(s)}

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from .api.cuentas import router as cuentas_router
 from .api.rutas import router as api_router
 from .db import crear_tablas, sesion
 from .whatsapp.mensajeria import purgar_vencidos
@@ -23,6 +24,7 @@ async def ciclo(_app):
 app = FastAPI(title="EcoConecta", lifespan=ciclo)
 app.include_router(webhook_router)
 app.include_router(api_router)
+app.include_router(cuentas_router)
 
 
 @app.get("/health")
