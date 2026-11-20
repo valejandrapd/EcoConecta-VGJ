@@ -1,0 +1,91 @@
+"""Pasos 2 y 3 de la cascada: Claude API con texto y con visión.
+
+Privacidad: solo se envía la descripción del residuo o la foto ya limpia. Nunca nombre,
+teléfono ni dirección. Tiempo máximo de espera configurable con IA_TIMEOUT_S.
+"""
+import base64
+import json
+import logging
+import re
+
+import anthropic
+
+from ..config import config
+
+log = logging.getLogger("ecoconecta.ia")
+
+
+class IANoDisponible(RuntimeError):
+    """Sin clave, tiempo agotado o error del proveedor: el bot responde con un mensaje de contingencia."""
+
+
+INSTRUCCIONES = (
+    "Eres el asistente de separación en la fuente de EcoConecta. Clasifica el residuo descrito "
+    "o mostrado. Responde SOLO con un JSON en una línea: "
+    '{"categoria": "ORGANICO" | "RECICLABLE" | "MEZCLA" | "NO_APROVECHABLE" | "DESCONOCIDO", '
+    '"objeto": "<nombre corto en español>", "confianza": "alta" | "media" | "baja"}. '
+    "ORGANICO = restos de comida, cáscaras, hojas, restos vegetales. "
+    "RECICLABLE = plástico, vidrio, metal, papel o cartón limpios. "
+    "MEZCLA = hay residuos orgánicos y reciclables juntos. "
+    "NO_APROVECHABLE = ni orgánico ni reciclable (higiénicos, peligrosos, contaminados). "
+    "DESCONOCIDO = no se entiende o no se ve un residuo."
+)
+
+CATEGORIAS = {"ORGANICO", "RECICLABLE", "MEZCLA", "NO_APROVECHABLE", "DESCONOCIDO"}
+
+
+def _cliente():
+    cfg = config()
+    if not cfg.anthropic_api_key:
+        raise IANoDisponible("Falta ANTHROPIC_API_KEY")
+    return anthropic.Anthropic(api_key=cfg.anthropic_api_key, timeout=cfg.ia_timeout_s, max_retries=1)
+
+
+def _llamar(modelo: str, contenido: list) -> dict:
+    try:
+        resp = _cliente().messages.create(
+            model=modelo,
+            max_tokens=1024,
+            system=INSTRUCCIONES,
+            output_config={"effort": "low"},
+            messages=[{"role": "user", "content": contenido}],
+        )
+    except IANoDisponible:
+        raise
+    except anthropic.APITimeoutError as e:
+        raise IANoDisponible("Tiempo de espera agotado") from e
+    except anthropic.APIError as e:
+        log.warning("Fallo de la API de Claude: %s", type(e).__name__)
+        raise IANoDisponible(str(type(e).__name__)) from e
+    if resp.stop_reason == "refusal":
+        return {"categoria": "DESCONOCIDO", "objeto": "", "confianza": "baja"}
+    texto = "".join(b.text for b in resp.content if b.type == "text")
+    return interpretar(texto)
+
+
+def interpretar(texto: str) -> dict:
+    """Extrae el JSON de la respuesta, tolerando texto extra."""
+    m = re.search(r"\{.*\}", texto or "", re.S)
+    try:
+        datos = json.loads(m.group(0)) if m else {}
+    except json.JSONDecodeError:
+        datos = {}
+    cat = str(datos.get("categoria", "DESCONOCIDO")).upper()
+    conf = str(datos.get("confianza", "baja")).lower()
+    return {
+        "categoria": cat if cat in CATEGORIAS else "DESCONOCIDO",
+        "objeto": str(datos.get("objeto", "")).strip()[:80],
+        "confianza": conf if conf in {"alta", "media", "baja"} else "baja",
+    }
+
+
+def clasificar_texto(descripcion: str) -> dict:
+    return _llamar(config().ia_modelo_texto, [{"type": "text", "text": f"Residuo: {descripcion[:500]}"}])
+
+
+def clasificar_imagen(jpeg: bytes) -> dict:
+    return _llamar(config().ia_modelo_vision, [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                     "data": base64.b64encode(jpeg).decode("ascii")}},
+        {"type": "text", "text": "Clasifica el residuo de la foto."},
+    ])
