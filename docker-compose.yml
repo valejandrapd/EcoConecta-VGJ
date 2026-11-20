@@ -1,0 +1,28 @@
+# Uso: cp .env.example .env  (completa los valores)  ->  docker compose up --build
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ecoconecta
+      POSTGRES_USER: ecoconecta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecoconecta}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecoconecta"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ecoconecta:${POSTGRES_PASSWORD:-ecoconecta}@db:5432/ecoconecta
+    ports:
+      - "8000:8000"   # el webhook de Meta apunta a https://<tu-dominio>/webhook
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
