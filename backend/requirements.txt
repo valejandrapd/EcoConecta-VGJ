@@ -1,9 +1,9 @@
+# Backend Python permitido por el reto: FastAPI, SQLAlchemy, Psycopg, Pydantic (incluido en FastAPI)
 fastapi>=0.115
-uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 psycopg[binary]>=3.2
-httpx>=0.27
+# SDK oficial de Anthropic (Claude API)
 anthropic>=0.40
+# Complementos justificados en el README: servidor ASGI de FastAPI y limpieza de fotos (EXIF / 1024 px)
+uvicorn>=0.30
 pillow>=10.0
-python-multipart>=0.0.9
-pytest>=8.0

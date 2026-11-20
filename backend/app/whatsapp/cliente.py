@@ -3,9 +3,10 @@
 Lo usan el bot y las notificaciones del sistema. Con NOTIFICADOR=log (o sin credenciales) se usa
 `ClienteLog`, que solo escribe en el log: sirve para desarrollo y demos sin número de Meta.
 """
+import json
 import logging
-
-import httpx
+import urllib.error
+import urllib.request
 
 from ..config import config
 
@@ -21,23 +22,27 @@ def _ocultar(wa_id: str) -> str:
 
 
 class ClienteWhatsApp:
+    """Cliente HTTP mínimo con la librería estándar (urllib): no añade dependencias."""
+
     def __init__(self, cfg=None):
         self.cfg = cfg or config()
         self.base = f"https://graph.facebook.com/{self.cfg.graph_version}"
 
-    def _headers(self):
-        return {"Authorization": f"Bearer {self.cfg.wa_token}"}
+    def _pedir(self, url: str, cuerpo: dict | None = None) -> bytes:
+        datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+        req = urllib.request.Request(url, data=datos, method="POST" if datos else "GET",
+                                     headers={"Authorization": f"Bearer {self.cfg.wa_token}",
+                                              "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=self.cfg.graph_timeout_s) as r:
+                return r.read()
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            raise ErrorWhatsApp(f"Graph API: {type(e).__name__}") from e
 
     def _post_mensaje(self, cuerpo: dict) -> str:
         url = f"{self.base}/{self.cfg.wa_phone_number_id}/messages"
-        try:
-            r = httpx.post(url, json={"messaging_product": "whatsapp", **cuerpo},
-                           headers=self._headers(), timeout=self.cfg.graph_timeout_s)
-            r.raise_for_status()
-        except httpx.HTTPError as e:
-            raise ErrorWhatsApp(f"Graph API: {type(e).__name__}") from e
-        mensajes = r.json().get("messages") or [{}]
-        return mensajes[0].get("id", "")
+        resp = json.loads(self._pedir(url, {"messaging_product": "whatsapp", **cuerpo}) or b"{}")
+        return (resp.get("messages") or [{}])[0].get("id", "")
 
     def enviar_texto(self, wa_id: str, texto: str) -> str:
         return self._post_mensaje({"to": wa_id, "type": "text", "text": {"body": texto[:4096]}})
@@ -51,14 +56,10 @@ class ClienteWhatsApp:
 
     def descargar_media(self, media_id: str) -> bytes:
         try:
-            meta = httpx.get(f"{self.base}/{media_id}", headers=self._headers(),
-                             timeout=self.cfg.graph_timeout_s)
-            meta.raise_for_status()
-            r = httpx.get(meta.json()["url"], headers=self._headers(), timeout=self.cfg.graph_timeout_s)
-            r.raise_for_status()
-        except (httpx.HTTPError, KeyError) as e:
-            raise ErrorWhatsApp(f"Descarga de media: {type(e).__name__}") from e
-        return r.content
+            url = json.loads(self._pedir(f"{self.base}/{media_id}"))["url"]
+        except (KeyError, ValueError) as e:
+            raise ErrorWhatsApp("Descarga de media: respuesta inesperada") from e
+        return self._pedir(url)
 
 
 class ClienteLog:
