@@ -1,4 +1,4 @@
-"""Servidor webhook: Whapi.Cloud envía aquí los mensajes de WhatsApp.
+"""Servidor de EcoConecta: webhook de WhatsApp (/webhook) + API REST para apps y webs (/api/v1).
 
 Uso local:
     python app.py            -> escucha en http://localhost:5000
@@ -11,6 +11,7 @@ import threading
 
 from flask import Flask, jsonify, request
 
+import api
 import bot
 import db
 import vision
@@ -18,6 +19,7 @@ import whapi
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 app = Flask(__name__)
+app.register_blueprint(api.bp)
 db.iniciar()
 
 
@@ -33,6 +35,7 @@ def cargar_env(ruta=".env"):
 
 
 cargar_env()
+app.config["MAX_CONTENT_LENGTH"] = api.max_foto_bytes() + 1024 * 1024
 
 
 def _atender(msg):
@@ -40,6 +43,11 @@ def _atender(msg):
         bot.procesar(msg, whapi.enviar_texto, whapi.descargar_imagen, vision.clasificar_foto)
     except Exception:  # noqa: BLE001
         logging.exception("Error atendiendo el mensaje %s", msg.get("id"))
+
+
+@app.errorhandler(413)
+def _demasiado_grande(_):
+    return jsonify(error="La foto es demasiado grande."), 413
 
 
 @app.get("/health")
