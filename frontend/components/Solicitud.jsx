@@ -1,6 +1,9 @@
 "use client";
 import { useState } from "react";
-import { api, fecha, NOMBRE_ESTADO, NOMBRE_FLUJO } from "../lib/api";
+import { api, fecha, NOMBRE_BONIFICACION, NOMBRE_ESTADO, NOMBRE_FLUJO, NOMBRE_TAMANO } from "../lib/api";
+
+// Estados con icono además del color (manual de identidad: no depender solo del color)
+const ICONO_ESTADO = { recibida: "📥", en_revision: "🔎", asignada: "👤", programada: "📅", recolectada: "✅", cancelada: "✖️" };
 
 // Tarjeta de una solicitud con su historial (RN-04). `acciones` agrega botones según el perfil.
 export default function Solicitud({ s, children }) {
@@ -11,16 +14,18 @@ export default function Solicitud({ s, children }) {
       <div className="fila" style={{ justifyContent: "space-between" }}>
         <strong style={{ flex: "0 0 auto" }}>{s.codigo}</strong>
         <span style={{ flex: "0 0 auto" }} className={`etiqueta ${s.flujo}`}>{NOMBRE_FLUJO[s.flujo]}</span>
-        <span style={{ flex: "0 0 auto" }} className="etiqueta">{NOMBRE_ESTADO[s.estado]}</span>
+        <span style={{ flex: "0 0 auto" }} className="etiqueta">{ICONO_ESTADO[s.estado]} {NOMBRE_ESTADO[s.estado]}</span>
       </div>
       <p className="suave" style={{ margin: "8px 0" }}>
         {s.tipo_generador === "unidad_productiva" ? "Unidad productiva" : "Hogar"}
-        {s.disponibilidad && ` · Prefiere: ${s.disponibilidad}`}
+        {s.tamano && ` · Tamaño ${NOMBRE_TAMANO[s.tamano].toLowerCase()}`}
+        {s.disponibilidad && ` · Disponible: ${s.disponibilidad}`}
+        {s.bonificacion && ` · Puntos para: ${NOMBRE_BONIFICACION[s.bonificacion].toLowerCase()}`}
         {s.observaciones && ` · ${s.observaciones}`}
       </p>
       {s.contacto && (
         <p style={{ margin: "4px 0" }}>
-          👤 {s.contacto.nombre} · 📞 {s.contacto.telefono} · 📍 {s.contacto.direccion}
+          👤 {s.contacto.nombre} · 📞 {s.contacto.telefono} · 📍 {s.contacto.etiqueta ? `${s.contacto.etiqueta}: ` : ""}{s.contacto.direccion}
         </p>
       )}
       {s.recolector && <p style={{ margin: "4px 0" }}>Persona encargada: <b>{s.recolector}</b></p>}

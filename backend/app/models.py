@@ -13,6 +13,11 @@ PREFIJO_FLUJO = {"organico": "ORG", "reciclable": "REC"}
 # RN-04: estados trazables (sección 5.4 del reto)
 ESTADOS_SOLICITUD = ("recibida", "en_revision", "asignada", "programada", "recolectada", "cancelada")
 TIPOS_GENERADOR = ("hogar", "unidad_productiva")
+# Asistente de nueva solicitud (web)
+TAMANOS = ("pequeno", "mediano", "grande")
+DIAS_SEMANA = ("lun", "mar", "mie", "jue", "vie", "sab", "dom")
+# Cómo quiere recibir el solicitante sus puntos: canje en tiendas de la zona o servicios del huerto
+BONIFICACIONES = ("tiendas", "huerto")
 # Perfiles (sección 4 y 5.1). Cada coordinador y recolector pertenece a un flujo (RN-01).
 ROLES = ("solicitante", "coordinador_huerteros", "coordinador_recicladores", "huertero", "reciclador",
          "administrador")
@@ -57,7 +62,13 @@ class Solicitud(Base):
     estado: Mapped[str] = mapped_column(String(20), default="recibida", index=True)
     observaciones: Mapped[str | None] = mapped_column(Text)
     direccion: Mapped[str | None] = mapped_column(String(255))
-    disponibilidad: Mapped[str | None] = mapped_column(String(120))  # preferencia horaria
+    disponibilidad: Mapped[str | None] = mapped_column(String(120))  # texto legible de días y horario
+    tamano: Mapped[str | None] = mapped_column(String(10))  # pequeno | mediano | grande
+    dias_disponibles: Mapped[str | None] = mapped_column(String(40))  # "lun,mie,vie"
+    hora_desde: Mapped[time | None] = mapped_column(Time)
+    hora_hasta: Mapped[time | None] = mapped_column(Time)
+    direccion_etiqueta: Mapped[str | None] = mapped_column(String(60))  # "Casa mamá"
+    bonificacion: Mapped[str | None] = mapped_column(String(10))  # tiendas | huerto
     coordinador_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))  # RN-03
     recolector_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))   # RN-03 (huertero/reciclador)
     fecha_programada: Mapped[date | None] = mapped_column(Date)  # RN-02
@@ -69,6 +80,17 @@ class Solicitud(Base):
     coordinador: Mapped[Usuario | None] = relationship(foreign_keys=[coordinador_id])
     recolector: Mapped[Usuario | None] = relationship(foreign_keys=[recolector_id])
     recoleccion: Mapped["Recoleccion | None"] = relationship(back_populates="solicitud", uselist=False)
+
+
+class DireccionUsuario(Base):
+    """Direcciones adicionales del solicitante, con una etiqueta propia ("Casa mamá")."""
+    __tablename__ = "direcciones_usuario"
+    __table_args__ = (UniqueConstraint("usuario_id", "etiqueta", name="uq_direccion_etiqueta"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    etiqueta: Mapped[str] = mapped_column(String(60))
+    direccion: Mapped[str] = mapped_column(String(255))
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
 class HistorialSolicitud(Base):

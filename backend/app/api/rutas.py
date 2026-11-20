@@ -19,8 +19,8 @@ from ..config import config
 from ..db import sesion
 from ..ia import cascada
 from ..ia.modelo import IANoDisponible
-from ..models import (COORDINADOR_DE_FLUJO, FLUJO_DE_ROL, CasoCoordinacion, HistorialSolicitud, Solicitud,
-                      Usuario)
+from ..models import (COORDINADOR_DE_FLUJO, FLUJO_DE_ROL, CasoCoordinacion, DireccionUsuario, HistorialSolicitud,
+                      Solicitud, Usuario)
 from ..whatsapp.mensajeria import purgar_vencidos
 
 
@@ -58,13 +58,16 @@ def _errores(fn):
 
 def _sol(sol: Solicitud, actor: Usuario) -> dict:
     d = {"codigo": sol.codigo, "flujo": sol.flujo, "tipo_generador": sol.tipo_generador, "estado": sol.estado,
-         "observaciones": sol.observaciones, "disponibilidad": sol.disponibilidad,
+         "observaciones": sol.observaciones, "disponibilidad": sol.disponibilidad, "tamano": sol.tamano,
+         "dias_disponibles": sol.dias_disponibles.split(",") if sol.dias_disponibles else [],
+         "hora_desde": sol.hora_desde, "hora_hasta": sol.hora_hasta, "bonificacion": sol.bonificacion,
          "fecha_programada": sol.fecha_programada, "hora_programada": sol.hora_programada,
          "recolector": sol.recolector.nombre if sol.recolector else None,
          "coordinador": sol.coordinador.nombre if sol.coordinador else None,
          "puntos": sol.recoleccion.puntos if sol.recoleccion else None, "creada_en": sol.creada_en}
     if negocio.puede_ver_contacto(actor, sol):  # RN-07
-        d["contacto"] = {"nombre": sol.usuario.nombre, "telefono": sol.usuario.telefono, "direccion": sol.direccion}
+        d["contacto"] = {"nombre": sol.usuario.nombre, "telefono": sol.usuario.telefono, "direccion": sol.direccion,
+                         "etiqueta": sol.direccion_etiqueta}
     return d
 
 
@@ -82,6 +85,12 @@ class NuevaSolicitud(BaseModel):
     direccion: str | None = None
     disponibilidad: str | None = None
     observaciones: str = ""
+    tamano: str | None = None
+    dias: list[str] | None = None
+    hora_desde: time | None = None
+    hora_hasta: time | None = None
+    direccion_etiqueta: str | None = Field(None, max_length=60)
+    bonificacion: str | None = None
 
 
 @router.post("/solicitudes", status_code=201)
@@ -90,7 +99,10 @@ def crear_solicitud(d: NuevaSolicitud, uid: int = Depends(actor_id)):
         actor = _actor(s, uid)
         sol = _errores(lambda: negocio.crear(s, actor, d.flujo, tipo_generador=d.tipo_generador,
                                              observaciones=d.observaciones, direccion=d.direccion,
-                                             disponibilidad=d.disponibilidad))
+                                             disponibilidad=d.disponibilidad, tamano=d.tamano, dias=d.dias,
+                                             hora_desde=d.hora_desde, hora_hasta=d.hora_hasta,
+                                             direccion_etiqueta=d.direccion_etiqueta,
+                                             bonificacion=d.bonificacion))
         return _sol(sol, actor)
 
 
@@ -115,7 +127,19 @@ def mis_solicitudes(uid: int = Depends(actor_id)):
     with sesion() as s:
         actor = _actor(s, uid)
         sols = s.scalars(select(Solicitud).where(Solicitud.usuario_id == actor.id).order_by(Solicitud.id.desc())).all()
-        return {"puntos": negocio.puntos_de(s, actor.id), "solicitudes": [_sol(x, actor) for x in sols]}
+        return {"puntos": negocio.puntos_de(s, actor.id), "insignias": negocio.insignias(s, actor.id),
+                "solicitudes": [_sol(x, actor) for x in sols]}
+
+
+@router.get("/mis-direcciones")
+def mis_direcciones(uid: int = Depends(actor_id)):
+    """Dirección principal y direcciones etiquetadas del solicitante (para el asistente)."""
+    with sesion() as s:
+        actor = _actor(s, uid)
+        extra = s.scalars(select(DireccionUsuario).where(DireccionUsuario.usuario_id == actor.id)
+                          .order_by(DireccionUsuario.etiqueta)).all()
+        return {"principal": actor.direccion,
+                "guardadas": [{"etiqueta": d.etiqueta, "direccion": d.direccion} for d in extra]}
 
 
 # --------------------------------------------------------------- coordinación

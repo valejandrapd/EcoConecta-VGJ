@@ -51,3 +51,21 @@ def sesion():
 def crear_tablas():
     from . import models  # noqa: F401  (registra los modelos)
     Base.metadata.create_all(engine())
+    _agregar_columnas_nuevas()
+
+
+def _agregar_columnas_nuevas():
+    """Migración mínima: create_all no altera tablas existentes, así que agrega las columnas
+    nuevas (todas opcionales) a una base creada con una versión anterior."""
+    from sqlalchemy import inspect, text
+    eng = engine()
+    insp = inspect(eng)
+    with eng.begin() as con:
+        for tabla in Base.metadata.sorted_tables:
+            if not insp.has_table(tabla.name):
+                continue
+            existentes = {c["name"] for c in insp.get_columns(tabla.name)}
+            for col in tabla.columns:
+                if col.name not in existentes and col.nullable:
+                    tipo = col.type.compile(dialect=eng.dialect)
+                    con.execute(text(f'ALTER TABLE {tabla.name} ADD COLUMN IF NOT EXISTS "{col.name}" {tipo}'))

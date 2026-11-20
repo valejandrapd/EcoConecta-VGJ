@@ -8,10 +8,15 @@
 - Prohibido no-code o low-code (n8n, Make, Zapier).
 - La IA solo **sugiere**. Nunca crea, asigna, programa ni cierra solicitudes.
 
+## Identidad visual
+
+Toda pantalla sigue el Manual de Identidad Visual del reto: usa los tokens `--eco-*` de `frontend/app/globals.css` (no inventes tonos), Poppins para títulos e Inter para texto y botones, botón principal verde Eco con texto blanco, puntos y logros en amarillo, estados con texto e icono (no solo color), móvil primero. El logo es la imagen `public/logo-ecoconecta.png`: no se recrea con texto ni se recolorea, y se muestra con al menos 220 px de ancho sobre fondo claro. Las ilustraciones (`components/Ilustraciones.jsx`, `Insignias.jsx`) son planas, con un solo trazo verde bosque de 2 px.
+
 ## Estructura
 
 - `frontend/`: React con Next.js (JS, CSS propio). `/api/*` se reenvía al backend (`next.config.mjs`). Hay un panel por perfil en `components/`.
-- `backend/app/solicitudes.py`: reglas RN-01 a RN-06. Todo cambio de estado pasa por `_cambiar_estado` (historial).
+- `frontend/app/solicitudes/nueva/page.jsx`: asistente de nueva solicitud (un paso por pantalla, botones ilustrados de `components/Opcion.jsx`).
+- `backend/app/solicitudes.py`: reglas RN-01 a RN-06, tamaño/días/horario/bonificación de la solicitud e insignias. Todo cambio de estado pasa por `_cambiar_estado` (historial).
 - `backend/app/api/`: `rutas.py` (operación) y `cuentas.py` (auth, usuarios, contenidos). Comprueba siempre el perfil del actor.
 - `backend/app/whatsapp/`: el bot. Hay un solo webhook (`/webhook`) y un solo cliente (`cliente.py`) para el bot y las notificaciones. No dupliques código de envío: usa `mensajeria.enviar`, que aplica la ventana de 24 h y registra el envío.
 - `backend/app/ia/`: cascada reglas, luego texto, luego visión. Fotos siempre por `imagen.preparar` (sin EXIF, máx. 1024 px).
@@ -28,6 +33,10 @@
 ## Especificación
 
 El PDF oficial del reto está en el material del proyecto (sección 5: alcance; 7: RN-01 a RN-08; 8: tecnologías permitidas). Ante dudas, manda el PDF.
+
+## Base de datos
+
+`crear_tablas()` crea las tablas y agrega las columnas opcionales nuevas a una base ya existente (`db._agregar_columnas_nuevas`). Una columna nueva debe ser opcional (`None` permitido) para que esa migración la agregue sola.
 
 ## Pruebas
 

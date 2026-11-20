@@ -8,6 +8,7 @@ from .. import auth, telefono
 from ..config import config
 from ..db import sesion
 from ..models import RECOLECTOR_DE_FLUJO, ROLES, TIPOS_GENERADOR, Contenido, Usuario
+from .. import solicitudes as negocio_insignias
 from ..solicitudes import puntos_de
 from .rutas import _actor, actor_id
 
@@ -211,5 +212,6 @@ def parametros():
     return {"modo_piloto": cfg.modo_piloto, "puntos": {
         "base_por_recoleccion": cfg.puntos_base, "por_kg_organico": cfg.puntos_kg_organico,
         "por_kg_reciclable": cfg.puntos_kg_reciclable,
+        "alcancia_sube_cada": negocio_insignias.PASO_ALCANCIA, "trinitaria_crece_cada": negocio_insignias.PASO_TRINITARIA,
         "formula": "base + kg x factor del flujo (redondeo hacia abajo)",
         "nota": "Valores de ejemplo, sujetos a validación de la Fundación Santo Domingo"}}

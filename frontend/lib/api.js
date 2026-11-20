@@ -67,3 +67,10 @@ export function fecha(f) {
   const [a, m, d] = String(f).slice(0, 10).split("-");
   return `${d}/${m}/${a}`;
 }
+
+export const NOMBRE_TAMANO = { pequeno: "Pequeño", mediano: "Mediano", grande: "Grande" };
+export const NOMBRE_BONIFICACION = { tiendas: "Canje en tiendas de la zona", huerto: "Servicios del huerto" };
+export const DIAS = [
+  ["lun", "Lun", "Lunes"], ["mar", "Mar", "Martes"], ["mie", "Mié", "Miércoles"], ["jue", "Jue", "Jueves"],
+  ["vie", "Vie", "Viernes"], ["sab", "Sáb", "Sábado"], ["dom", "Dom", "Domingo"],
+];

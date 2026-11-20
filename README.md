@@ -2,7 +2,7 @@
 
 Plataforma para conectar a hogares y unidades productivas de Villas de San Pablo (Barranquilla) con los **huerteros** (residuos orgánicos) y los **recicladores** (residuos reciclables). Cubre la educación ambiental, la solicitud de recolección, la asignación, la programación, la recolección y los puntos. Es el reto oficial de la Hackathon Unilibre y la Fundación Santo Domingo (FSD), noviembre de 2026.
 
-- **Frontend:** React con Next.js (`frontend/`), pensado para móvil y tableta.
+- **Frontend:** React con Next.js (`frontend/`), pensado para móvil y tableta. Sigue el Manual de Identidad Visual del reto: colores como tokens `--eco-*` en `app/globals.css`, Poppins para títulos e Inter para texto, y el logo original en `public/logo-ecoconecta.png`.
 - **Backend:** Python, FastAPI, SQLAlchemy y Psycopg, con PostgreSQL (`backend/`).
 - **Canal:** WhatsApp Business Cloud API de Meta (`backend/app/whatsapp/`).
 - **IA:** Claude API con el SDK oficial de Anthropic. Hace una clasificación orientativa del residuo y no toma decisiones (`backend/app/ia/`).
@@ -99,7 +99,7 @@ Son 46 pruebas contra PostgreSQL real. Simulan Meta y Claude, así que no necesi
 | **RN-03** Asignación | `solicitudes.coordinador_id` y `solicitudes.recolector_id` |
 | **RN-04** Trazabilidad | Código `ORG-0001` / `REC-0001`, estado y la tabla `historial_solicitudes`, que registra cada cambio con quién lo hizo |
 | **RN-05** Cierre | Los puntos solo se crean en `recolecciones`, al registrar la recolección de una solicitud programada |
-| **RN-06** Puntos | `puntos = PUNTOS_BASE_RECOLECCION + kg × PUNTOS_POR_KG_<FLUJO>`, redondeado hacia abajo. La fórmula aplicada queda guardada en `recolecciones.regla`. **Los valores son de ejemplo y no son reglas oficiales de FSD**: están sujetos a su validación |
+| **RN-06** Puntos | `puntos = PUNTOS_BASE_RECOLECCION + kg × PUNTOS_POR_KG_<FLUJO>`, redondeado hacia abajo. La fórmula aplicada queda guardada en `recolecciones.regla`. **Los valores son de ejemplo y no son reglas oficiales de FSD**: están sujetos a su validación. Cada solicitud indica a qué bonificación van sus puntos (`tiendas`: canje en tiendas de la zona; `huerto`: servicios del huerto). La alcancía sube un nivel cada 10 puntos de tiendas y la trinitaria crece cada 5 puntos del huerto, hasta el nivel 5 (florecida). Esto es una propuesta del equipo: falta definir con FSD qué se canjea con cada tipo de punto |
 | **RN-07** Privacidad | El contacto y la dirección solo los ven el dueño, el coordinador del flujo, el recolector asignado y el administrador. Por WhatsApp, el estado solo se informa al número dueño de la solicitud. Del recolector solo se muestra el primer nombre |
 | **RN-08** Piloto | `usuarios.piloto` junto con `MODO_PILOTO=true`. Un usuario fuera del piloto solo recibe información general |
 
@@ -114,7 +114,7 @@ Son 46 pruebas contra PostgreSQL real. Simulan Meta y Claude, así que no necesi
 | Perfil | Pantallas |
 |---|---|
 | Público | Inicio con contenidos educativos filtrables (separación, huerta, horarios y rutas), registro (con consentimiento de datos) e ingreso |
-| Solicitante | Nueva solicitud: flujo, dirección, disponibilidad y observaciones, con un botón "Ayúdame" de IA orientativa. También muestra sus solicitudes con estado, persona encargada, fecha y hora, historial, puntos y la opción de cancelar |
+| Solicitante | Panel con dos insignias animadas (alcancía de tiendas y trinitaria del huerto), el botón **Crear solicitud** y sus solicitudes con estado, persona encargada, fecha y hora, historial, puntos y la opción de cancelar. **Crear solicitud** abre un asistente de un paso por pantalla (`/solicitudes/nueva`) con botones ilustrados: tipo de residuo (con "¿No sabes cuál es?", la ayuda de IA orientativa), tamaño (pequeño, mediano o grande, con dibujos según el tipo), días disponibles, franja horaria, confirmación de la dirección (o una nueva con etiqueta, como "Casa mamá", que queda guardada), tipo de bonificación y resumen |
 | Coordinador | Bandeja de su flujo con pestañas (pendientes, asignadas, programadas, atendidas y canceladas). Permite revisar, asignar a una persona del colectivo, programar día y hora (avisa por WhatsApp), registrar la recolección y cancelar. Incluye los casos derivados por WhatsApp y un resumen por flujo, estado y periodo |
 | Huertero / reciclador | Sus asignaciones: acordar y registrar día y hora, y registrar la recolección (kg) |
 | Administración | Usuarios (perfil, piloto, activo, alta de personas), contenidos (crear, editar, borrar), todas las solicitudes y los parámetros de puntos |
@@ -129,7 +129,7 @@ El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formul
 
 | Perfil | Rutas |
 |---|---|
-| Solicitante | `POST /solicitudes`, `GET /solicitudes/{codigo}`, `GET /solicitudes/{codigo}/historial`, `GET /mis-solicitudes` (incluye puntos), `POST /solicitudes/{codigo}/cancelar` |
+| Solicitante | `POST /solicitudes`, `GET /solicitudes/{codigo}`, `GET /solicitudes/{codigo}/historial`, `GET /mis-solicitudes` (incluye puntos e insignias), `GET /mis-direcciones`, `POST /solicitudes/{codigo}/cancelar` |
 | Coordinador | `GET /bandeja?estado=` (solicitudes de su flujo y casos derivados por WhatsApp), `POST /solicitudes/{codigo}/revisar`, `/asignar`, `/programar`, `GET /resumen?desde=&hasta=` |
 | Huertero / reciclador | `GET /asignaciones`, `POST /solicitudes/{codigo}/programar`, `POST /solicitudes/{codigo}/recoleccion` |
 | Administrador | `GET/POST /usuarios`, `PATCH /usuarios/{id}` (perfil, piloto, activo), `POST/PUT/DELETE /contenidos`, `POST /mantenimiento/purgar-mensajes`, más todo lo anterior |

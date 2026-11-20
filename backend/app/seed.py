@@ -64,7 +64,9 @@ def cargar():
             s.flush()
             tienda, coord, carlos = creados["Tienda La Esquina (demo)"], creados["coordinador_huerteros"], creados["huertero"]
             sol = Solicitud(codigo="ORG-0042", usuario=tienda, flujo="organico", tipo_generador="unidad_productiva",
-                            estado="programada", direccion=tienda.direccion, disponibilidad="Mañanas",
+                            estado="programada", direccion=tienda.direccion, disponibilidad="Lun, Mié, Vie · 07:00 a 10:00",
+                            tamano="grande", dias_disponibles="lun,mie,vie", hora_desde=time(7, 0),
+                            hora_hasta=time(10, 0), bonificacion="huerto",
                             coordinador=coord, recolector=carlos,
                             fecha_programada=date.today(), hora_programada=time(8, 0))
             s.add(sol)
