@@ -4,7 +4,7 @@
 flowchart TB
     subgraph Canales
         WA[WhatsApp del ciudadano]
-        WEB["frontend React/Next.js (:3000): solicitante, coordinadores, recolectores, admin"]
+        WEB["frontend React/Next.js (:3000): usuario, coordinación de huerta y de reciclaje, admin"]
     end
     META[WhatsApp Business Cloud API - Meta]
     subgraph Backend [backend - FastAPI]
@@ -48,7 +48,9 @@ flowchart TB
 erDiagram
     usuarios ||--o{ solicitudes : "solicita (usuario_id)"
     usuarios ||--o{ solicitudes : "coordina (coordinador_id)"
-    usuarios ||--o{ solicitudes : "recolecta (recolector_id)"
+    personal_campo ||--o{ solicitudes : "recicla (reciclador_id)"
+    usuarios ||--o{ personal_campo : "integra (creado_por_id)"
+    usuarios ||--o{ direcciones_usuario : "direcciones con etiqueta"
     solicitudes ||--o{ historial_solicitudes : "RN-04"
     solicitudes ||--o| recolecciones : "RN-05"
     usuarios ||--o{ recolecciones : "puntos"
@@ -58,10 +60,12 @@ erDiagram
 
 | Tabla | Uso |
 |---|---|
-| `usuarios` | Perfil (`rol`), `telefono` E.164 único, `direccion`, `tipo_generador`, `piloto` (RN-08), `clave_hash` (scrypt) |
-| `solicitudes` | `codigo` ORG-/REC-, `flujo` (RN-01), `tipo_generador`, `estado`, `direccion`, `disponibilidad`, `observaciones`, `coordinador_id` y `recolector_id` (RN-03), `fecha_programada` y `hora_programada` (RN-02) |
+| `usuarios` | Solo los 4 perfiles con acceso (`rol`), `telefono` E.164 único, `direccion`, `zona`, `tipo_generador`, `piloto` (RN-08), `clave_hash` (scrypt) |
+| `personal_campo` | Recicladores (con `zona`) y voluntarios de huerta, sin cuenta: `nombre`, `apellido`, `dias_servicio`, `hora_desde`, `hora_hasta`, `activo` |
+| `direcciones_usuario` | Direcciones extra del usuario con `etiqueta` ("Casa mamá") y `zona` |
+| `solicitudes` | `codigo` ORG-/REC-, `flujo` (RN-01), `tipo_generador`, `estado`, `direccion`, `disponibilidad`, `observaciones`, `zona`, `tamano`, `dias_disponibles`, `hora_desde`/`hora_hasta`, `bonificacion`, `coordinador_id` y `reciclador_id` (RN-03), `fecha_programada` y `hora_programada` (RN-02) |
 | `historial_solicitudes` | Cada cambio de estado, con quién lo hizo y una nota (RN-04) |
-| `recolecciones` | Kg entregados, puntos y la fórmula aplicada (RN-05, RN-06). Una por solicitud |
+| `recolecciones` | Kg entregados, puntos y la fórmula aplicada (RN-05, RN-06), quién la registró (columna `recolector_id`, hoy el coordinador) y `reciclador_id`. Una por solicitud |
 | `contenidos` | Material educativo. Es la única fuente de información del bot |
 | `mensajes_whatsapp` | `wa_message_id` (UNIQUE), `wa_id`, `direccion`, `tipo`, `intencion`, `estado_envio`, `retener_hasta` |
 | `conversaciones_whatsapp` | Ventana de 24 h, fallos seguidos, paso actual y último flujo |
@@ -75,9 +79,9 @@ stateDiagram-v2
     recibida --> en_revision: coordinador revisa
     recibida --> asignada: coordinador asigna
     en_revision --> asignada: coordinador asigna
-    asignada --> programada: día + hora + persona (RN-02)
+    asignada --> programada: día + hora + reciclador, dentro de la ventana (RN-02)
     programada --> programada: reprogramar
-    programada --> recolectada: recolector registra kg (RN-05)
+    programada --> recolectada: coordinación registra kg (RN-05)
     recibida --> cancelada
     en_revision --> cancelada
     asignada --> cancelada

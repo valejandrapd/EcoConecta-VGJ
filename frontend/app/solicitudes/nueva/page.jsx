@@ -1,14 +1,26 @@
 "use client";
 // Asistente de nueva solicitud: un paso por pantalla, con botones ilustrados.
-// tipo de residuo -> tamaño -> días -> horario -> dirección -> bonificación -> confirmar.
+// tipo de residuo -> consejos -> tamaño -> días -> horario -> dirección -> bonificación -> confirmar.
 // El bot de WhatsApp enlaza aquí con ?flujo=organico|reciclable para saltar el primer paso.
 import { useEffect, useState } from "react";
-import { api, DIAS, NOMBRE_BONIFICACION, NOMBRE_FLUJO, NOMBRE_TAMANO, sesion } from "../../../lib/api";
+import { api, DIAS, hora12, NOMBRE_BONIFICACION, NOMBRE_FLUJO, NOMBRE_TAMANO, sesion } from "../../../lib/api";
 import Opcion from "../../../components/Opcion";
-import { Calendario, Casa, Organico, Pin, Reciclable, Tamano } from "../../../components/Ilustraciones";
+import { Botella, Caja, Calendario, Camara, Casa, CodigoPlastico, Manzana, Organico, Pin, Reciclable, Tamano, Vineta } from "../../../components/Ilustraciones";
 import { Alcancia, Trinitaria } from "../../../components/Insignias";
 
-const PASOS = ["tipo", "tamano", "dias", "horario", "direccion", "bonificacion", "resumen"];
+const PASOS = ["tipo", "consejos", "tamano", "dias", "horario", "direccion", "bonificacion", "resumen"];
+// Códigos de plástico: qué se recibe. Orientativo: confirmar con los recicladores de la zona.
+const PLASTICOS = [
+  [1, "PET", "Botellas de agua, gaseosa y aceite", "si"],
+  [2, "PEAD", "Tarros de leche, champú y detergente", "si"],
+  [3, "PVC", "Tubos, mangueras y blísteres de pastillas", "no"],
+  [4, "PEBD", "Bolsas y plástico de envolver", "depende"],
+  [5, "PP", "Tapas, tarros de margarina y vasos de yogur", "si"],
+  [6, "PS", "Icopor, vasos y platos desechables", "no"],
+  [7, "Otros", "Mezclas y otros plásticos", "no"],
+];
+const TEXTO_OK = { si: "✔ Sí", no: "✖ No", depende: "● Limpias y secas" };
+const NOMBRE_CATEGORIA = { organico: "ORGÁNICO", reciclable: "RECICLABLE", no_aprovechable: "NO APROVECHABLE" };
 const DETALLE_TAMANO = {
   organico: { pequeno: "Un par de cáscaras y hojas", mediano: "Una bolsita de cáscaras", grande: "Una bolsa llena o más" },
   reciclable: { pequeno: "Una botella o una lata", mediano: "Una bolsita de envases", grande: "Una bolsa llena y cajas" },
@@ -21,12 +33,6 @@ const FRANJAS = [
 const HORAS = Array.from({ length: 14 }, (_, i) => `${String(i + 6).padStart(2, "0")}:00`); // 06:00 a 19:00
 const ETIQUETAS = ["Casa mamá", "Trabajo", "Mi negocio", "Casa familiar"];
 
-function hora12(h) {
-  const n = Number(h.slice(0, 2));
-  if (n === 12) return "12 m.";
-  return `${n % 12} ${n < 12 ? "a. m." : "p. m."}`;
-}
-
 // Fecha del próximo día de la semana (para que la cuadrícula parezca un calendario)
 function proximaFecha(indice) {
   const hoy = new Date();
@@ -38,12 +44,13 @@ function proximaFecha(indice) {
 
 export default function NuevaSolicitud() {
   const [yo, setYo] = useState(null);
-  const [direcciones, setDirecciones] = useState({ principal: "", guardadas: [] });
+  const [direcciones, setDirecciones] = useState({ principal: "", zona: null, guardadas: [] });
+  const [zonas, setZonas] = useState([]);
   const [insignias, setInsignias] = useState(null);
   const [paso, setPaso] = useState(0);
   const [f, setF] = useState({ flujo: "", tamano: "", dias: [], hora_desde: "", hora_hasta: "", bonificacion: "", observaciones: "" });
-  const [dir, setDir] = useState({ misma: null, direccion: "", etiqueta: "" });
-  const [duda, setDuda] = useState({ abierta: false, texto: "", sugerencia: null });
+  const [dir, setDir] = useState({ misma: null, direccion: "", etiqueta: "", zona: "" });
+  const [duda, setDuda] = useState({ texto: "", sugerencia: null, foto: false });
   const [estado, setEstado] = useState({ enviando: false, error: "", creada: null });
 
   useEffect(() => {
@@ -53,6 +60,7 @@ export default function NuevaSolicitud() {
     }
     api("/auth/yo").then(setYo).catch(() => (window.location.href = "/login"));
     api("/mis-direcciones").then(setDirecciones).catch(() => {});
+    api("/zonas").then(setZonas).catch(() => {});
     api("/mis-solicitudes").then((d) => setInsignias(d.insignias)).catch(() => {});
     const flujo = new URLSearchParams(window.location.search).get("flujo");
     if (flujo === "organico" || flujo === "reciclable") {
@@ -88,6 +96,7 @@ export default function NuevaSolicitud() {
           ...f,
           direccion: otra ? dir.direccion.trim() : undefined,
           direccion_etiqueta: otra ? dir.etiqueta.trim() : undefined,
+          zona: otra ? dir.zona : direcciones.zona || dir.zona,
         },
       });
       setEstado({ enviando: false, error: "", creada: s });
@@ -110,7 +119,8 @@ export default function NuevaSolicitud() {
 
   const nombre = PASOS[paso];
   const direccionFinal = dir.misma === false ? dir.direccion : direcciones.principal;
-  const listoDir = dir.misma === true || (dir.misma === false && dir.direccion.trim().length >= 3 && dir.etiqueta.trim());
+  const zonaFinal = dir.misma === false ? dir.zona : direcciones.zona || dir.zona;
+  const listoDir = zonaFinal && (dir.misma === true || (dir.misma === false && dir.direccion.trim().length >= 3 && dir.etiqueta.trim()));
   const horarioOk = f.hora_desde && f.hora_hasta && f.hora_desde < f.hora_hasta;
 
   return (
@@ -131,30 +141,69 @@ export default function NuevaSolicitud() {
             <h1>¿Qué vas a entregar?</h1>
             <div className="opciones" role="radiogroup" aria-label="Tipo de residuo">
               <Opcion elegida={f.flujo === "organico"} onClick={() => poner({ flujo: "organico", tamano: "" }, true)}
-                dibujo={<Organico />} nombre="Orgánicos" detalle="Cáscaras, restos de comida y hojas. Los recogen los huerteros." />
+                dibujo={<Organico />} nombre="Orgánicos" detalle="Cáscaras, restos de comida y hojas. Van a la huerta comunitaria." />
               <Opcion elegida={f.flujo === "reciclable"} onClick={() => poner({ flujo: "reciclable", tamano: "" }, true)}
-                dibujo={<Reciclable />} nombre="Reciclables" detalle="Plástico, vidrio, metal, papel y cartón limpios. Los recogen los recicladores." />
+                dibujo={<Reciclable />} nombre="Reciclables" detalle="Plástico, vidrio, metal, papel y cartón limpios." />
             </div>
-            <p>
-              <button type="button" className="secundario" onClick={() => setDuda((d) => ({ ...d, abierta: !d.abierta }))} aria-expanded={duda.abierta}>
-                ¿No sabes cuál es?
-              </button>
-            </p>
-            {duda.abierta && (
-              <div className="tarjeta">
-                <label htmlFor="duda">Cuéntanos qué vas a entregar</label>
-                <div className="fila">
-                  <input id="duda" value={duda.texto} onChange={(e) => setDuda({ ...duda, texto: e.target.value })} placeholder="Ej.: cáscaras de plátano y una caja" style={{ flex: "3 1 200px" }} />
-                  <button type="button" onClick={preguntarIA} disabled={!duda.texto.trim()}>Ayúdame</button>
-                </div>
-                {duda.sugerencia?.error && <p className="error">{duda.sugerencia.error}</p>}
-                {duda.sugerencia && !duda.sugerencia.error && (
-                  <p className="suave">
-                    Te sugerimos: <b>{duda.sugerencia.categoria === "mezcla" ? "es una mezcla, haz una solicitud por cada tipo" : duda.sugerencia.categoria.replace("_", " ")}</b>{" "}
-                    (confianza {duda.sugerencia.confianza}). Es solo una ayuda: tú eliges.
-                  </p>
-                )}
+            <h2>¿No sabes cuál es?</h2>
+            <div className="tarjeta">
+              <label htmlFor="duda" style={{ marginTop: 0 }}>Escribe qué vas a entregar</label>
+              <div className="fila">
+                <input id="duda" value={duda.texto} onChange={(e) => setDuda({ ...duda, texto: e.target.value })} placeholder="Ej.: cáscaras de plátano" style={{ flex: "3 1 200px" }} />
+                <button type="button" onClick={preguntarIA} disabled={!duda.texto.trim()}>Ayúdame</button>
               </div>
+              {duda.sugerencia?.error && <p className="error">{duda.sugerencia.error}</p>}
+              {duda.sugerencia && !duda.sugerencia.error && (
+                duda.sugerencia.categoria === "mezcla" ? (
+                  <p className="veredicto">Tienes una <b>MEZCLA</b>: haz una solicitud por cada tipo.</p>
+                ) : NOMBRE_CATEGORIA[duda.sugerencia.categoria] ? (
+                  <p className={`veredicto ${duda.sugerencia.categoria}`}>
+                    Tu residuo es <b>{NOMBRE_CATEGORIA[duda.sugerencia.categoria]}</b>
+                    <span className="suave"> · confianza {duda.sugerencia.confianza}. Es una ayuda: tú eliges arriba.</span>
+                  </p>
+                ) : (
+                  <p className="suave">No pude identificarlo. Prueba con otras palabras o con una foto.</p>
+                )
+              )}
+            </div>
+            <div className="opciones lista">
+              <Opcion onClick={() => setDuda({ ...duda, foto: true })} dibujo={<Camara />} nombre="Tómale una foto"
+                detalle={duda.foto ? "Muy pronto podrás identificar tu residuo con una foto." : "Te decimos si es orgánico o reciclable"} />
+            </div>
+          </>
+        )}
+
+        {nombre === "consejos" && (
+          <>
+            <h1>Antes de entregarlo</h1>
+            {f.flujo === "organico" ? (
+              <div className="tarjeta consejo">
+                <Vineta titulo="Fruta con etiqueta"><g transform="translate(30 31) scale(1.3)"><Manzana x={0} y={0} /></g><rect x="34" y="20" width="12" height="8" rx="2" fill="#F6C400" stroke="#063B2E" strokeWidth="1.5" /></Vineta>
+                <div><h3>Sin etiquetas</h3><p>Quita los adhesivos de las frutas y las etiquetas de los empaques. Solo restos de comida, cáscaras y hojas.</p></div>
+              </div>
+            ) : (
+              <>
+                <div className="tarjeta consejo">
+                  <Vineta titulo="Cartón seco"><Caja x={30} y={34} w={28} h={20} /></Vineta>
+                  <div><h3>Cartón y papel secos</h3><p>Que no estén mojados ni con grasa. Una caja de pizza con aceite no se recicla.</p></div>
+                </div>
+                <div className="tarjeta consejo">
+                  <Vineta titulo="Botella limpia"><Botella x={30} y={34} s={0.8} /></Vineta>
+                  <div><h3>Botellas y envases limpios</h3><p>Enjuágalos, déjalos escurrir y aplasta las botellas para que ocupen menos.</p></div>
+                </div>
+                <h2>¿Qué plástico es?</h2>
+                <p className="suave">Busca el número dentro del triángulo de flechas, casi siempre en el fondo del envase.</p>
+                <ul className="plasticos">
+                  {PLASTICOS.map(([n, sigla, ejemplos, ok]) => (
+                    <li key={n} className="tarjeta">
+                      <CodigoPlastico n={n} ok={ok} />
+                      <div><b>{sigla}</b><br /><span className="suave">{ejemplos}</span></div>
+                      <span className={`recibe ${ok}`}>{TEXTO_OK[ok]}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="suave">Es una guía general: confírmalo con el reciclador de tu zona.</p>
+              </>
             )}
           </>
         )}
@@ -163,7 +212,7 @@ export default function NuevaSolicitud() {
           <>
             <h1>¿Qué tanto tienes?</h1>
             <p className="suave">{NOMBRE_FLUJO[f.flujo]}: elige el tamaño que más se parezca.</p>
-            <div className="opciones" role="radiogroup" aria-label="Tamaño">
+            <div className="opciones lista" role="radiogroup" aria-label="Tamaño">
               {["pequeno", "mediano", "grande"].map((t) => (
                 <Opcion key={t} elegida={f.tamano === t} onClick={() => poner({ tamano: t }, true)}
                   dibujo={<Tamano flujo={f.flujo} tamano={t} />} nombre={NOMBRE_TAMANO[t]} detalle={DETALLE_TAMANO[f.flujo][t]} />
@@ -198,7 +247,7 @@ export default function NuevaSolicitud() {
         {nombre === "horario" && (
           <>
             <h1>¿A qué hora estás disponible?</h1>
-            <div className="opciones" role="radiogroup" aria-label="Franja horaria">
+            <div className="opciones lista" role="radiogroup" aria-label="Franja horaria">
               {FRANJAS.map(([t, d, h]) => (
                 <Opcion key={t} elegida={f.hora_desde === d && f.hora_hasta === h} onClick={() => poner({ hora_desde: d, hora_hasta: h })}
                   dibujo={<Sol franja={t} />} nombre={t} detalle={`${hora12(d)} a ${hora12(h)}`} />
@@ -230,18 +279,24 @@ export default function NuevaSolicitud() {
           <>
             <h1>¿Estarás en esta dirección?</h1>
             {direcciones.principal ? (
-              <p className="direccion"><Pin /> {direcciones.principal}</p>
+              <p className="direccion"><Pin /> <span>{direcciones.principal}{direcciones.zona && <span className="suave" style={{ display: "block" }}>{direcciones.zona}</span>}</span></p>
             ) : (
               <p className="suave">No tienes una dirección principal registrada. Escribe dónde recogemos.</p>
             )}
             <div className="opciones" role="radiogroup" aria-label="Confirmar dirección">
               {direcciones.principal && (
-                <Opcion elegida={dir.misma === true} onClick={() => { setDir({ ...dir, misma: true }); setTimeout(siguiente, 260); }}
+                <Opcion elegida={dir.misma === true} onClick={() => { setDir({ ...dir, misma: true }); if (direcciones.zona) setTimeout(siguiente, 260); }}
                   dibujo={<Casa />} nombre="Sí, aquí" />
               )}
               <Opcion elegida={dir.misma === false} onClick={() => setDir({ ...dir, misma: false })} dibujo={<Casa nueva />}
                 nombre={direcciones.principal ? "No, en otra" : "Escribir dirección"} />
             </div>
+            {dir.misma === true && !direcciones.zona && (
+              <div className="tarjeta" style={{ marginTop: 16 }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>¿En qué zona queda?</p>
+                <SelectorZona zonas={zonas} valor={dir.zona} alElegir={(z) => setDir({ ...dir, zona: z })} />
+              </div>
+            )}
             {dir.misma === false && (
               <div className="tarjeta" style={{ marginTop: 16 }}>
                 {direcciones.guardadas.length > 0 && (
@@ -251,7 +306,7 @@ export default function NuevaSolicitud() {
                       {direcciones.guardadas.map((g) => (
                         <button key={g.etiqueta} type="button" className="secundario chip"
                           aria-pressed={dir.etiqueta === g.etiqueta && dir.direccion === g.direccion}
-                          onClick={() => setDir({ misma: false, direccion: g.direccion, etiqueta: g.etiqueta })}>
+                          onClick={() => setDir({ misma: false, direccion: g.direccion, etiqueta: g.etiqueta, zona: g.zona || "" })}>
                           📍 {g.etiqueta}
                         </button>
                       ))}
@@ -260,6 +315,8 @@ export default function NuevaSolicitud() {
                 )}
                 <label htmlFor="nueva-dir">Dirección de recolección</label>
                 <input id="nueva-dir" value={dir.direccion} onChange={(e) => setDir({ ...dir, direccion: e.target.value })} placeholder="Ej.: Manzana 7, casa 3" autoComplete="street-address" />
+                <label>Zona</label>
+                <SelectorZona zonas={zonas} valor={dir.zona} alElegir={(z) => setDir({ ...dir, zona: z })} />
                 <label htmlFor="etiqueta">Ponle un nombre</label>
                 <input id="etiqueta" value={dir.etiqueta} maxLength={60} onChange={(e) => setDir({ ...dir, etiqueta: e.target.value })} placeholder="Ej.: Casa mamá" />
                 <div className="chips">
@@ -295,7 +352,7 @@ export default function NuevaSolicitud() {
               <dt>Residuo</dt><dd>{NOMBRE_FLUJO[f.flujo]} · {NOMBRE_TAMANO[f.tamano]}</dd>
               <dt>Días</dt><dd>{DIAS.filter(([c]) => f.dias.includes(c)).map(([, , l]) => l).join(", ")}</dd>
               <dt>Horario</dt><dd>{hora12(f.hora_desde)} a {hora12(f.hora_hasta)}</dd>
-              <dt>Dirección</dt><dd>{dir.misma === false ? `${dir.etiqueta}: ` : ""}{direccionFinal}</dd>
+              <dt>Dirección</dt><dd>{dir.misma === false ? `${dir.etiqueta}: ` : ""}{direccionFinal} · {zonaFinal}</dd>
               <dt>Puntos</dt><dd>{NOMBRE_BONIFICACION[f.bonificacion]}</dd>
             </dl>
             <label htmlFor="obs">¿Algo más que debamos saber? (opcional)</label>
@@ -305,14 +362,25 @@ export default function NuevaSolicitud() {
         )}
       </section>
 
-      {["dias", "horario", "direccion", "resumen"].includes(nombre) && (
+      {["consejos", "dias", "horario", "direccion", "resumen"].includes(nombre) && (
         <div className="acciones-paso">
+          {nombre === "consejos" && <button onClick={siguiente}>¡Entendido!</button>}
           {nombre === "dias" && <button disabled={!f.dias.length} onClick={siguiente}>Continuar</button>}
           {nombre === "horario" && <button disabled={!horarioOk} onClick={siguiente}>Continuar</button>}
           {nombre === "direccion" && <button disabled={!listoDir} onClick={siguiente}>Continuar</button>}
           {nombre === "resumen" && <button disabled={estado.enviando} onClick={enviar}>{estado.enviando ? "Enviando…" : "Crear solicitud"}</button>}
         </div>
       )}
+    </div>
+  );
+}
+
+function SelectorZona({ zonas, valor, alElegir }) {
+  return (
+    <div className="chips" role="radiogroup" aria-label="Zona">
+      {zonas.map((z) => (
+        <button key={z} type="button" role="radio" aria-checked={valor === z} className="secundario chip" onClick={() => alElegir(z)}>{z}</button>
+      ))}
     </div>
   );
 }

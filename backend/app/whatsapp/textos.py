@@ -19,8 +19,8 @@ def menu() -> str:
 
 
 QUE_ES = (
-    "EcoConecta conecta a hogares y unidades productivas de Villas de San Pablo con los *huerteros* "
-    "(residuos orgánicos, para compostaje en la huerta) y los *recicladores* (residuos reciclables). "
+    "EcoConecta conecta a hogares y unidades productivas de Villas de San Pablo con los *recicladores*, "
+    "que recogen tus orgánicos (para compostaje en la huerta comunitaria) y tus reciclables. "
     "Pides la recolección, la coordinación te asigna día, hora y persona, y ganas puntos al entregar.\n"
     "Escribe *menú* para ver las opciones."
 )
@@ -68,7 +68,7 @@ SIN_CONTENIDO = ("No tengo esa información en este momento. Le pasé tu pregunt
                  "y te contactarán pronto.")
 
 
-COORDINACION = {"organico": "La coordinación de huerteros", "reciclable": "La coordinación de recicladores",
+COORDINACION = {"organico": "La coordinación de huerta", "reciclable": "La coordinación de reciclaje",
                 "general": "La coordinación de EcoConecta"}
 
 
@@ -115,8 +115,8 @@ def estado_solicitud(sol) -> str:
             lineas.append(f"Fecha: {sol.fecha_programada:%d/%m/%Y}")
         if sol.hora_programada:
             lineas.append(f"Hora: {sol.hora_programada:%H:%M}")
-        if sol.recolector:
-            lineas.append(f"Persona encargada: {sol.recolector.nombre.split()[0]}")
+        if sol.reciclador:
+            lineas.append(f"Persona encargada: {sol.reciclador.nombre}")
     if sol.estado == "recolectada" and sol.recoleccion:
         lineas.append(f"Puntos ganados: {sol.recoleccion.puntos}")
     return "\n".join(lineas)

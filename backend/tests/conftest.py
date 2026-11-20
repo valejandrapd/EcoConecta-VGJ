@@ -21,7 +21,9 @@ from PIL import Image  # noqa: E402
 
 from app.db import Base, crear_tablas, engine, sesion  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Usuario  # noqa: E402
+from datetime import date, time, timedelta  # noqa: E402
+
+from app.models import DIAS_SEMANA, PersonalCampo, Usuario  # noqa: E402
 from app.whatsapp import cliente as wa_cliente  # noqa: E402
 from app.whatsapp.firma import firmar  # noqa: E402
 
@@ -58,15 +60,23 @@ def base():
     crear_tablas()
     with sesion() as s:
         s.add_all([
-            Usuario(nombre="Ana Pérez", telefono="+" + ANA, direccion="Calle 10 # 1-2", piloto=True,
+            Usuario(nombre="Ana Pérez", telefono="+" + ANA, direccion="Calle 10 # 1-2", zona="Sector 1", piloto=True,
                     tipo_generador="unidad_productiva"),
-            Usuario(nombre="Beto Gómez", telefono="+" + BETO, direccion="Carrera 5 # 9-9", piloto=True),
-            Usuario(nombre="Carlos Ruiz", telefono="+573000000002", rol="huertero"),
-            Usuario(nombre="Coord Org", telefono="+573000000003", rol="coordinador_huerteros"),
-            Usuario(nombre="Coord Rec", telefono="+573000000004", rol="coordinador_recicladores"),
-            Usuario(nombre="Rosa Rec", telefono="+573000000006", rol="reciclador"),
+            Usuario(nombre="Beto Gómez", telefono="+" + BETO, direccion="Carrera 5 # 9-9", zona="Sector 2",
+                    piloto=True),
+            Usuario(nombre="Coord Org", telefono="+573000000003", rol="coordinador_huerta"),
+            Usuario(nombre="Coord Rec", telefono="+573000000004", rol="coordinador_reciclaje"),
             Usuario(nombre="Admin", telefono="+573000000007", rol="administrador"),
             Usuario(nombre="Dora Fuera", telefono="+573005550000", direccion="Mz 1", piloto=False),
+            # Personal de campo sin cuenta
+            PersonalCampo(tipo="reciclador", nombre="Rosa", apellido="Martínez", zona="Sector 1",
+                          dias_servicio="lun,mar,mie,jue,vie", hora_desde=time(7), hora_hasta=time(12)),
+            PersonalCampo(tipo="reciclador", nombre="Luis", apellido="Herrera", zona="Sector 2",
+                          dias_servicio="lun,mie,vie,sab", hora_desde=time(8), hora_hasta=time(17)),
+            PersonalCampo(tipo="reciclador", nombre="Pedro", apellido="Sáenz", zona="Sector 1",
+                          dias_servicio="sab", hora_desde=time(13), hora_hasta=time(18)),
+            PersonalCampo(tipo="voluntario_huerta", nombre="Carlos", apellido="Ruiz",
+                          dias_servicio="sab,dom", hora_desde=time(7), hora_hasta=time(11)),
         ])
     yield
 
@@ -104,6 +114,20 @@ def publicar(client, carga, secreto=SECRETO):
     cuerpo = json.dumps(carga).encode()
     return client.post("/webhook", content=cuerpo, headers={
         "Content-Type": "application/json", "X-Hub-Signature-256": firmar(cuerpo, secreto)})
+
+
+def personal(nombre):
+    from sqlalchemy import select
+    with sesion() as s:
+        return s.scalar(select(PersonalCampo).where(PersonalCampo.nombre == nombre))
+
+
+def proximo(dia: str) -> date:
+    """Próxima fecha (desde mañana) que cae en ese día de la semana ('lun'...'dom')."""
+    d = date.today() + timedelta(days=1)
+    while DIAS_SEMANA[d.weekday()] != dia:
+        d += timedelta(days=1)
+    return d
 
 
 def usuario(rol=None, tel=None):

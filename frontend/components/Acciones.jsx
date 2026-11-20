@@ -1,33 +1,81 @@
 "use client";
-import { useState } from "react";
-import { api } from "../lib/api";
+import { useEffect, useState } from "react";
+import { api, fecha as fechaCorta, hora12, nombresDias } from "../lib/api";
 
-// Acciones operativas: siempre las ejecuta una persona (control humano, sección 9 del reto).
-export function Asignar({ s, recolectores, alTerminar }) {
-  const [id, setId] = useState("");
-  return (
-    <div className="fila">
-      <select value={id} onChange={(e) => setId(e.target.value)} aria-label="Persona del colectivo">
-        <option value="">Elegir persona del colectivo…</option>
-        {recolectores.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-      </select>
-      <Boton disabled={!id} accion={() => api(`/solicitudes/${s.codigo}/asignar`, { metodo: "POST", cuerpo: { recolector_id: Number(id) } })} alTerminar={alTerminar}>
-        {s.recolector ? "Reasignar" : "Asignar"}
-      </Boton>
-    </div>
-  );
+const DIA_LARGO = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+// Horas cada 30 minutos dentro de la ventana [desde, hasta)
+function horasEntre(desde, hasta) {
+  const m = (h) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+  const res = [];
+  for (let x = Math.ceil(m(desde) / 30) * 30; x < m(hasta); x += 30) {
+    res.push(`${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`);
+  }
+  return res;
 }
 
-export function Programar({ s, alTerminar }) {
-  const [fecha, setFecha] = useState(s.fecha_programada || "");
-  const [hora, setHora] = useState(s.hora_programada ? String(s.hora_programada).slice(0, 5) : "");
+function fechaLarga(iso) {
+  const d = new Date(`${iso}T12:00:00`);
+  return `${DIA_LARGO[d.getDay()]} ${fechaCorta(iso)}`;
+}
+
+// Asignar y programar en un paso. Solo se ofrecen recicladores de la zona de la solicitud y,
+// para cada uno, los días y horas en que coinciden su servicio y la disponibilidad del usuario.
+export function Asignar({ s, alTerminar }) {
+  const [opciones, setOpciones] = useState(null);
+  const [id, setId] = useState("");
+  const [dia, setDia] = useState("");
+  const [hora, setHora] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api(`/solicitudes/${s.codigo}/opciones-asignacion`).then(setOpciones).catch((e) => setError(e.message));
+  }, [s.codigo]);
+
+  if (error) return <p className="error">{error}</p>;
+  if (!opciones) return <p className="suave">Buscando recicladores de la zona…</p>;
+  if (opciones.length === 0) {
+    return (
+      <p className="suave">
+        ⚠️ No hay recicladores {s.zona ? `de ${s.zona} ` : ""}con horario que coincida con el del usuario
+        ({s.disponibilidad || "sin preferencia"}). Integra uno nuevo o contacta al usuario para ampliar su horario.
+      </p>
+    );
+  }
+  const op = opciones.find((o) => String(o.id) === id);
+  const horas = op ? horasEntre(op.desde.slice(0, 5), op.hasta.slice(0, 5)) : [];
   return (
-    <div className="fila">
-      <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} aria-label="Fecha" />
-      <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} aria-label="Hora" />
-      <Boton disabled={!fecha || !hora} accion={() => api(`/solicitudes/${s.codigo}/programar`, { metodo: "POST", cuerpo: { fecha, hora } })} alTerminar={alTerminar}>
-        Programar y avisar
-      </Boton>
+    <div className="tarjeta" style={{ background: "var(--fondo)" }}>
+      <p style={{ margin: "0 0 4px", fontWeight: 600 }}>{s.reciclador ? "Cambiar reciclador o fecha" : "Asignar reciclador"}</p>
+      <p className="suave" style={{ margin: 0 }}>Solo aparecen recicladores de la zona y en el horario que eligió el usuario.</p>
+      <div className="opciones lista" role="radiogroup" aria-label="Reciclador" style={{ margin: "8px 0" }}>
+        {opciones.map((o) => (
+          <button key={o.id} type="button" role="radio" aria-checked={id === String(o.id)} className="opcion"
+            onClick={() => { setId(String(o.id)); setDia(""); setHora(""); }}>
+            <span className="textos">
+              <span className="nombre">♻️ {o.nombre}</span>
+              <span className="detalle">{o.zona} · Puede: {nombresDias(o.dias)}, {hora12(o.desde)} a {hora12(o.hasta)}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      {op && (
+        <div className="fila">
+          <select value={dia} onChange={(e) => setDia(e.target.value)} aria-label="Día de recolección">
+            <option value="">Elegir día…</option>
+            {op.fechas.map((f) => <option key={f} value={f}>{fechaLarga(f)}</option>)}
+          </select>
+          <select value={hora} onChange={(e) => setHora(e.target.value)} aria-label="Hora de recolección">
+            <option value="">Elegir hora…</option>
+            {horas.map((h) => <option key={h} value={h}>{hora12(h)}</option>)}
+          </select>
+          <Boton disabled={!dia || !hora}
+            accion={() => api(`/solicitudes/${s.codigo}/asignar`, { metodo: "POST", cuerpo: { reciclador_id: op.id, fecha: dia, hora } })}
+            alTerminar={alTerminar}>
+            Asignar y programar
+          </Boton>
+        </div>
+      )}
     </div>
   );
 }
@@ -37,7 +85,7 @@ export function RegistrarRecoleccion({ s, alTerminar }) {
   const [obs, setObs] = useState("");
   return (
     <div className="fila">
-      <input type="number" min="0.1" step="0.1" value={kg} onChange={(e) => setKg(e.target.value)} placeholder="Kg entregados" aria-label="Kilogramos" />
+      <input type="number" min="0.1" step="0.1" value={kg} onChange={(e) => setKg(e.target.value)} placeholder="Kg recibidos en la huerta o el acopio" aria-label="Kilogramos" />
       <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observaciones" aria-label="Observaciones" />
       <Boton disabled={!(Number(kg) > 0)} accion={() => api(`/solicitudes/${s.codigo}/recoleccion`, { metodo: "POST", cuerpo: { cantidad_kg: kg, observaciones: obs || null } })} alTerminar={alTerminar}>
         Registrar recolección

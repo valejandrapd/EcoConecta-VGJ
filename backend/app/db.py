@@ -52,6 +52,17 @@ def crear_tablas():
     from . import models  # noqa: F401  (registra los modelos)
     Base.metadata.create_all(engine())
     _agregar_columnas_nuevas()
+    _migrar_perfiles()
+
+
+def _migrar_perfiles():
+    """Perfiles anteriores: los coordinadores cambian de nombre y las cuentas de huerteros y
+    recicladores se desactivan (ahora son personal de campo sin acceso, en `personal_campo`)."""
+    from sqlalchemy import text
+    with engine().begin() as con:
+        con.execute(text("UPDATE usuarios SET rol = 'coordinador_huerta' WHERE rol = 'coordinador_huerteros'"))
+        con.execute(text("UPDATE usuarios SET rol = 'coordinador_reciclaje' WHERE rol = 'coordinador_recicladores'"))
+        con.execute(text("UPDATE usuarios SET activo = false WHERE rol IN ('huertero', 'reciclador') AND activo"))
 
 
 def _agregar_columnas_nuevas():

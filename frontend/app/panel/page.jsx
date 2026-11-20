@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { api, cerrarSesion, NOMBRE_ROL, sesion } from "../../lib/api";
 import Solicitante from "../../components/Solicitante";
 import Coordinador from "../../components/Coordinador";
-import Recolector from "../../components/Recolector";
 import Administrador from "../../components/Administrador";
 
 export default function Panel() {
@@ -38,7 +37,6 @@ export default function Panel() {
       </div>
       {yo.rol === "solicitante" && <Solicitante yo={yo} />}
       {yo.rol.startsWith("coordinador_") && <Coordinador yo={yo} />}
-      {(yo.rol === "huertero" || yo.rol === "reciclador") && <Recolector yo={yo} />}
       {yo.rol === "administrador" && <Administrador yo={yo} />}
     </>
   );

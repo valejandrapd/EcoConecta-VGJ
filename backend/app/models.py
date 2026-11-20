@@ -18,13 +18,13 @@ TAMANOS = ("pequeno", "mediano", "grande")
 DIAS_SEMANA = ("lun", "mar", "mie", "jue", "vie", "sab", "dom")
 # Cómo quiere recibir el solicitante sus puntos: canje en tiendas de la zona o servicios del huerto
 BONIFICACIONES = ("tiendas", "huerto")
-# Perfiles (sección 4 y 5.1). Cada coordinador y recolector pertenece a un flujo (RN-01).
-ROLES = ("solicitante", "coordinador_huerteros", "coordinador_recicladores", "huertero", "reciclador",
-         "administrador")
-FLUJO_DE_ROL = {"coordinador_huerteros": "organico", "huertero": "organico",
-                "coordinador_recicladores": "reciclable", "reciclador": "reciclable"}
-COORDINADOR_DE_FLUJO = {"organico": "coordinador_huerteros", "reciclable": "coordinador_recicladores"}
-RECOLECTOR_DE_FLUJO = {"organico": "huertero", "reciclable": "reciclador"}
+# Perfiles con acceso a la web: solo estos cuatro. Cada coordinador atiende un flujo (RN-01).
+ROLES = ("solicitante", "coordinador_huerta", "coordinador_reciclaje", "administrador")
+FLUJO_DE_ROL = {"coordinador_huerta": "organico", "coordinador_reciclaje": "reciclable"}
+COORDINADOR_DE_FLUJO = {"organico": "coordinador_huerta", "reciclable": "coordinador_reciclaje"}
+# Personal de campo SIN cuenta: los registra la coordinación. Solo los recicladores recolectan
+# (también los orgánicos); los voluntarios de huerta no recolectan.
+TIPOS_PERSONAL = ("reciclador", "voluntario_huerta")
 
 SEQ_ORG = Sequence("seq_codigo_org", metadata=Base.metadata)
 SEQ_REC = Sequence("seq_codigo_rec", metadata=Base.metadata)
@@ -40,6 +40,7 @@ class Usuario(Base):
     nombre: Mapped[str] = mapped_column(String(120))
     telefono: Mapped[str] = mapped_column(String(16), unique=True, index=True)  # E.164
     direccion: Mapped[str | None] = mapped_column(String(255))
+    zona: Mapped[str | None] = mapped_column(String(60))
     rol: Mapped[str] = mapped_column(String(30), default="solicitante")
     tipo_generador: Mapped[str | None] = mapped_column(String(20))  # hogar | unidad_productiva
     piloto: Mapped[bool] = mapped_column(Boolean, default=False)  # RN-08: habilitado en el piloto
@@ -52,6 +53,31 @@ class Usuario(Base):
         return FLUJO_DE_ROL.get(self.rol)
 
 
+class PersonalCampo(Base):
+    """Recicladores y voluntarios de huerta. No inician sesión: la coordinación les avisa por sus
+    propios medios y registra todo en la web."""
+    __tablename__ = "personal_campo"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(20), index=True)  # reciclador | voluntario_huerta
+    nombre: Mapped[str] = mapped_column(String(80))
+    apellido: Mapped[str] = mapped_column(String(80))
+    zona: Mapped[str | None] = mapped_column(String(60), index=True)  # solo recicladores
+    dias_servicio: Mapped[str] = mapped_column(String(40))  # "lun,mar,sab"
+    hora_desde: Mapped[time] = mapped_column(Time)
+    hora_hasta: Mapped[time] = mapped_column(Time)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    creado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    @property
+    def nombre_completo(self) -> str:
+        return f"{self.nombre} {self.apellido}".strip()
+
+    @property
+    def dias(self) -> list[str]:
+        return self.dias_servicio.split(",") if self.dias_servicio else []
+
+
 class Solicitud(Base):
     __tablename__ = "solicitudes"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -62,6 +88,7 @@ class Solicitud(Base):
     estado: Mapped[str] = mapped_column(String(20), default="recibida", index=True)
     observaciones: Mapped[str | None] = mapped_column(Text)
     direccion: Mapped[str | None] = mapped_column(String(255))
+    zona: Mapped[str | None] = mapped_column(String(60), index=True)
     disponibilidad: Mapped[str | None] = mapped_column(String(120))  # texto legible de días y horario
     tamano: Mapped[str | None] = mapped_column(String(10))  # pequeno | mediano | grande
     dias_disponibles: Mapped[str | None] = mapped_column(String(40))  # "lun,mie,vie"
@@ -70,7 +97,7 @@ class Solicitud(Base):
     direccion_etiqueta: Mapped[str | None] = mapped_column(String(60))  # "Casa mamá"
     bonificacion: Mapped[str | None] = mapped_column(String(10))  # tiendas | huerto
     coordinador_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))  # RN-03
-    recolector_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))   # RN-03 (huertero/reciclador)
+    reciclador_id: Mapped[int | None] = mapped_column(ForeignKey("personal_campo.id"))  # RN-03
     fecha_programada: Mapped[date | None] = mapped_column(Date)  # RN-02
     hora_programada: Mapped[time | None] = mapped_column(Time)   # RN-02
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
@@ -78,7 +105,7 @@ class Solicitud(Base):
 
     usuario: Mapped[Usuario] = relationship(foreign_keys=[usuario_id])
     coordinador: Mapped[Usuario | None] = relationship(foreign_keys=[coordinador_id])
-    recolector: Mapped[Usuario | None] = relationship(foreign_keys=[recolector_id])
+    reciclador: Mapped[PersonalCampo | None] = relationship()
     recoleccion: Mapped["Recoleccion | None"] = relationship(back_populates="solicitud", uselist=False)
 
 
@@ -90,6 +117,7 @@ class DireccionUsuario(Base):
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
     etiqueta: Mapped[str] = mapped_column(String(60))
     direccion: Mapped[str] = mapped_column(String(255))
+    zona: Mapped[str | None] = mapped_column(String(60))
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
@@ -110,7 +138,9 @@ class Recoleccion(Base):
     __tablename__ = "recolecciones"
     id: Mapped[int] = mapped_column(primary_key=True)
     solicitud_id: Mapped[int] = mapped_column(ForeignKey("solicitudes.id"), unique=True)
-    recolector_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    # Coordinador que registra la recolección (la columna conserva su nombre histórico)
+    registrado_por_id: Mapped[int] = mapped_column("recolector_id", ForeignKey("usuarios.id"))
+    reciclador_id: Mapped[int | None] = mapped_column(ForeignKey("personal_campo.id"))
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
     cantidad_kg: Mapped[Decimal] = mapped_column(Numeric(8, 2))
     puntos: Mapped[int] = mapped_column(Integer)

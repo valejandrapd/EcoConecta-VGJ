@@ -48,7 +48,7 @@ class Notificador:
         cfg = config()
         fecha = f"{sol.fecha_programada:%d/%m/%Y}" if sol.fecha_programada else ""
         hora = f"{sol.hora_programada:%H:%M}" if sol.hora_programada else ""
-        encargado = sol.recolector.nombre.split()[0] if sol.recolector else ""
+        encargado = sol.reciclador.nombre if sol.reciclador else ""
         mensajeria.enviar(
             s, _wa_id(sol.usuario.telefono), cliente=self.cliente, usuario_id=sol.usuario_id, intencion="solicitud_programada",
             texto=f"Tu solicitud *{sol.codigo}* quedó programada para el {fecha} a las {hora}"

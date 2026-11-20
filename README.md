@@ -1,6 +1,6 @@
 # EcoConecta Villas de San Pablo
 
-Plataforma para conectar a hogares y unidades productivas de Villas de San Pablo (Barranquilla) con los **huerteros** (residuos orgánicos) y los **recicladores** (residuos reciclables). Cubre la educación ambiental, la solicitud de recolección, la asignación, la programación, la recolección y los puntos. Es el reto oficial de la Hackathon Unilibre y la Fundación Santo Domingo (FSD), noviembre de 2026.
+Plataforma para conectar a hogares y unidades productivas de Villas de San Pablo (Barranquilla) con los **recicladores** de su zona, que recogen los residuos orgánicos (para la huerta comunitaria, donde apoyan los **voluntarios de huerta**) y los reciclables. Cubre la educación ambiental, la solicitud de recolección, la asignación, la programación, la recolección y los puntos. Es el reto oficial de la Hackathon Unilibre y la Fundación Santo Domingo (FSD), noviembre de 2026.
 
 - **Frontend:** React con Next.js (`frontend/`), pensado para móvil y tableta. Sigue el Manual de Identidad Visual del reto: colores como tokens `--eco-*` en `app/globals.css`, Poppins para títulos e Inter para texto, y el logo original en `public/logo-ecoconecta.png`.
 - **Backend:** Python, FastAPI, SQLAlchemy y Psycopg, con PostgreSQL (`backend/`).
@@ -39,7 +39,7 @@ No se usan herramientas no-code ni low-code, ni otros servicios.
 flowchart LR
     U[Solicitante en WhatsApp] -- mensaje / foto --> META[WhatsApp Business Cloud API]
     META -- "POST /webhook (firma X-Hub-Signature-256)" --> WH
-    WEB["frontend React/Next.js: solicitante, coordinadores, recolectores, admin"] -- "/api (Bearer token)" --> API
+    WEB["frontend React/Next.js: usuario, coordinación de huerta y de reciclaje, admin"] -- "/api (Bearer token)" --> API
     subgraph backend [backend FastAPI]
         WH[whatsapp/webhook] -- BackgroundTasks --> BOT[whatsapp/bot]
         BOT --> IA[ia/cascada]
@@ -66,16 +66,14 @@ docker compose exec -e DEMO_CLAVE=<clave> backend python -m app.seed   # datos F
 - **API interactiva:** `http://localhost:8000/docs`.
 - Las tablas se crean al arrancar el backend.
 
-`app.seed` crea un usuario por perfil, todos ficticios y con la clave `DEMO_CLAVE`. Si no la defines, se genera una y se imprime.
+`app.seed` crea un usuario por perfil, todos ficticios y con la clave `DEMO_CLAVE` (si no la defines, se genera una y se imprime), y cuatro personas de campo sin cuenta: los recicladores Rosa (Sector 1, lun a vie, 7 a 12), Luis (Sector 2, lun, mié, vie y sáb, 8 a 17) y Marta (Sector 2, mar, jue y sáb, 13 a 18), y el voluntario de huerta Carlos. En una base anterior, volver a correrlo agrega el personal y las zonas que falten.
 
 | Perfil | Teléfono |
 |---|---|
 | Unidad productiva (Tienda La Esquina) | `DEMO_TELEFONO` o 3000000001 |
 | Hogar | 3000000005 |
-| Coordinación de huerteros | 3000000003 |
-| Coordinación de recicladores | 3000000004 |
-| Huertero | 3000000002 |
-| Reciclador | 3000000006 |
+| Coordinación de huerta | 3000000003 |
+| Coordinación de reciclaje | 3000000004 |
 | Administración | 3000000007 |
 
 Frontend sin Docker: `cd frontend && npm install && npm run dev`. El backend debe estar en `localhost:8000`, o indica otra dirección con `BACKEND_URL`.
@@ -94,18 +92,18 @@ Son 46 pruebas contra PostgreSQL real. Simulan Meta y Claude, así que no necesi
 
 | Regla | Cómo se cumple |
 |---|---|
-| **RN-01** Separación de flujos | Cada solicitud tiene `flujo`. La bandeja de cada coordinador solo muestra su flujo, y solo se puede asignar un huertero a una solicitud orgánica y un reciclador a una reciclable. `nueva_solicitud` solo se notifica a la coordinación de ese flujo |
-| **RN-02** Programación | No se puede pasar a `programada` sin fecha, hora y persona encargada (`recolector_id`) |
-| **RN-03** Asignación | `solicitudes.coordinador_id` y `solicitudes.recolector_id` |
+| **RN-01** Separación de flujos | Cada solicitud tiene `flujo`. La bandeja de cada coordinación solo muestra su flujo, y solo esa coordinación puede asignar, programar y cerrar |
+| **RN-02** Programación | No se puede pasar a `programada` sin fecha, hora y reciclador (`reciclador_id`). La fecha y la hora deben caer en los días y horas que eligió el usuario **y** en el horario de servicio del reciclador |
+| **RN-03** Asignación | `solicitudes.coordinador_id` y `solicitudes.reciclador_id`. Solo se ofrecen y aceptan recicladores activos de la zona de la solicitud cuyo horario cruza con el del usuario (`GET /solicitudes/{codigo}/opciones-asignacion`). Los voluntarios de huerta no recolectan |
 | **RN-04** Trazabilidad | Código `ORG-0001` / `REC-0001`, estado y la tabla `historial_solicitudes`, que registra cada cambio con quién lo hizo |
 | **RN-05** Cierre | Los puntos solo se crean en `recolecciones`, al registrar la recolección de una solicitud programada |
 | **RN-06** Puntos | `puntos = PUNTOS_BASE_RECOLECCION + kg × PUNTOS_POR_KG_<FLUJO>`, redondeado hacia abajo. La fórmula aplicada queda guardada en `recolecciones.regla`. **Los valores son de ejemplo y no son reglas oficiales de FSD**: están sujetos a su validación. Cada solicitud indica a qué bonificación van sus puntos (`tiendas`: canje en tiendas de la zona; `huerto`: servicios del huerto). La alcancía sube un nivel cada 10 puntos de tiendas y la trinitaria crece cada 5 puntos del huerto, hasta el nivel 5 (florecida). Esto es una propuesta del equipo: falta definir con FSD qué se canjea con cada tipo de punto |
-| **RN-07** Privacidad | El contacto y la dirección solo los ven el dueño, el coordinador del flujo, el recolector asignado y el administrador. Por WhatsApp, el estado solo se informa al número dueño de la solicitud. Del recolector solo se muestra el primer nombre |
+| **RN-07** Privacidad | El contacto y la dirección solo los ven el dueño, la coordinación del flujo y el administrador. El reciclador no usa la web: la coordinación le avisa por sus propios medios. Por WhatsApp, el estado solo se informa al número dueño y el reciclador se nombra solo por su nombre |
 | **RN-08** Piloto | `usuarios.piloto` junto con `MODO_PILOTO=true`. Un usuario fuera del piloto solo recibe información general |
 
 **Estados:** `recibida`, `en_revision`, `asignada`, `programada`, `recolectada` y `cancelada`.
 
-**Perfiles:** `solicitante` (`tipo_generador`: hogar o unidad productiva), `coordinador_huerteros`, `coordinador_recicladores`, `huertero`, `reciclador` y `administrador`.
+**Perfiles con acceso:** solo cuatro: `solicitante` (el usuario; `tipo_generador`: hogar o unidad productiva), `coordinador_huerta`, `coordinador_reciclaje` y `administrador`. **Personal de campo sin cuenta** (`personal_campo`): recicladores (nombre, apellido, zona, días y horario de servicio) y voluntarios de huerta (nombre, apellido, días y horario). Los integra la coordinación. El reciclador marca la bolsa con el código (por ejemplo, ORG-0042) y la lleva a la huerta o al acopio, donde la coordinación registra los kg.
 
 **Control humano (sección 9):** la asignación, la programación y el cierre se hacen solo desde la API con el perfil autorizado. La IA nunca llama a esas funciones.
 
@@ -114,9 +112,8 @@ Son 46 pruebas contra PostgreSQL real. Simulan Meta y Claude, así que no necesi
 | Perfil | Pantallas |
 |---|---|
 | Público | Inicio con contenidos educativos filtrables (separación, huerta, horarios y rutas), registro (con consentimiento de datos) e ingreso |
-| Solicitante | Panel con dos insignias animadas (alcancía de tiendas y trinitaria del huerto), el botón **Crear solicitud** y sus solicitudes con estado, persona encargada, fecha y hora, historial, puntos y la opción de cancelar. **Crear solicitud** abre un asistente de un paso por pantalla (`/solicitudes/nueva`) con botones ilustrados: tipo de residuo (con "¿No sabes cuál es?", la ayuda de IA orientativa), tamaño (pequeño, mediano o grande, con dibujos según el tipo), días disponibles, franja horaria, confirmación de la dirección (o una nueva con etiqueta, como "Casa mamá", que queda guardada), tipo de bonificación y resumen |
-| Coordinador | Bandeja de su flujo con pestañas (pendientes, asignadas, programadas, atendidas y canceladas). Permite revisar, asignar a una persona del colectivo, programar día y hora (avisa por WhatsApp), registrar la recolección y cancelar. Incluye los casos derivados por WhatsApp y un resumen por flujo, estado y periodo |
-| Huertero / reciclador | Sus asignaciones: acordar y registrar día y hora, y registrar la recolección (kg) |
+| Solicitante | Panel con dos insignias animadas (alcancía de tiendas y trinitaria del huerto), el botón **Crear solicitud** y sus solicitudes con estado, persona encargada, fecha y hora, historial, puntos y la opción de cancelar. **Crear solicitud** abre un asistente de un paso por pantalla (`/solicitudes/nueva`) con botones ilustrados: tipo de residuo (debajo, la ayuda por texto que responde "Tu residuo es ORGÁNICO / RECICLABLE" y el botón "Tómale una foto", aún sin función), consejos del material (reciclable: cartón seco, envases limpios y los códigos de plástico 1 a 7; orgánico: sin etiquetas), tamaño (botones uno debajo del otro (pequeño, mediano o grande, con dibujos según el tipo), días disponibles, franja horaria, confirmación de la dirección y su zona (o una nueva con zona y etiqueta, como "Casa mamá", que queda guardada), tipo de bonificación y resumen |
+| Coordinación de huerta o de reciclaje | Botón **Integrar nuevo reciclador / voluntario de huerta** y pestaña con el personal (activar o desactivar). Bandeja de su flujo con pestañas (pendientes, asignadas, programadas, atendidas y canceladas): revisar, **asignar y programar en un paso** (solo recicladores de la zona, y solo los días y horas que cruzan con el usuario; avisa por WhatsApp), registrar la recolección (kg) y cancelar. Incluye los casos derivados por WhatsApp y un resumen por flujo, estado y periodo |
 | Administración | Usuarios (perfil, piloto, activo, alta de personas), contenidos (crear, editar, borrar), todas las solicitudes y los parámetros de puntos |
 
 El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formulario con el flujo ya elegido.
@@ -125,15 +122,14 @@ El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formul
 
 - **Autenticación de la web:** `POST /auth/registro` y `POST /auth/login` devuelven un token, que luego se envía como `Authorization: Bearer <token>`. Las claves se guardan con scrypt y los tokens se firman con HMAC (`AUTH_SECRET`), todo con la librería estándar de Python.
 - **Integraciones internas:** pueden usar `X-Service-Key` junto con `X-Usuario-Id`.
-- **Rutas públicas:** `GET /contenidos` y `GET /parametros`.
+- **Rutas públicas:** `GET /contenidos`, `GET /parametros` y `GET /zonas`.
 
 | Perfil | Rutas |
 |---|---|
 | Solicitante | `POST /solicitudes`, `GET /solicitudes/{codigo}`, `GET /solicitudes/{codigo}/historial`, `GET /mis-solicitudes` (incluye puntos e insignias), `GET /mis-direcciones`, `POST /solicitudes/{codigo}/cancelar` |
-| Coordinador | `GET /bandeja?estado=` (solicitudes de su flujo y casos derivados por WhatsApp), `POST /solicitudes/{codigo}/revisar`, `/asignar`, `/programar`, `GET /resumen?desde=&hasta=` |
-| Huertero / reciclador | `GET /asignaciones`, `POST /solicitudes/{codigo}/programar`, `POST /solicitudes/{codigo}/recoleccion` |
+| Coordinador | `GET /bandeja?estado=` (solicitudes de su flujo y casos derivados por WhatsApp), `POST /solicitudes/{codigo}/revisar`, `GET /solicitudes/{codigo}/opciones-asignacion`, `POST /solicitudes/{codigo}/asignar` (con `fecha` y `hora` también programa), `/programar`, `/recoleccion`, `GET /resumen?desde=&hasta=` |
 | Administrador | `GET/POST /usuarios`, `PATCH /usuarios/{id}` (perfil, piloto, activo), `POST/PUT/DELETE /contenidos`, `POST /mantenimiento/purgar-mensajes`, más todo lo anterior |
-| Coordinador (apoyo) | `GET /recolectores` (personas de su colectivo) |
+| Coordinación (personal de campo) | `GET /personal?tipo=`, `POST /personal`, `PATCH /personal/{id}` (activo) |
 | Formulario web | `POST /ia/sugerir` (sugerencia orientativa, no crea nada) |
 
 ## Chatbot de WhatsApp
@@ -147,7 +143,7 @@ El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formul
 | Consulta de estado por código (`ORG-0042`): estado, fecha, hora, persona encargada y puntos, solo para el número dueño | Implementado |
 | Información educativa (separación, huerta, horarios, rutas), solo desde la tabla `contenidos` | Implementado. Los contenidos de `seed.py` son ejemplos que debe validar FSD |
 | Mis puntos (`7`) | Implementado |
-| Derivación a una persona (lo pide el usuario, o el bot no entiende dos veces seguidas). Se registra en la bandeja de la coordinación de huerteros o de recicladores | Implementado (`casos_coordinacion`) |
+| Derivación a una persona (lo pide el usuario, o el bot no entiende dos veces seguidas). Se registra en la bandeja de la coordinación de huerta o de reciclaje | Implementado (`casos_coordinacion`) |
 | Notificaciones `solicitud_recibida`, `nueva_solicitud` y `solicitud_programada` (día, hora y persona) | Implementado. Texto dentro de la ventana de 24 h, plantilla fuera de ella |
 | Crear la solicitud completa por chat | Pendiente (opcional). El bot envía el enlace al formulario web |
 

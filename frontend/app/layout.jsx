@@ -5,7 +5,7 @@ export const metadata = {
   description: "Aprende a separar y solicita la recolección de tus residuos orgánicos y reciclables.",
 };
 
-export const viewport = { width: "device-width", initialScale: 1, themeColor: "#063B2E" };
+export const viewport = { width: "device-width", initialScale: 1, themeColor: "#ffffff" };
 
 export default function Layout({ children }) {
   return (
@@ -21,14 +21,12 @@ export default function Layout({ children }) {
       </head>
       <body>
         <header className="barra">
+          <a href="/" className="enlace izq">Aprende</a>
           <a href="/" className="marca" aria-label="EcoConecta Villas de San Pablo, inicio">
             {/* Logo original del manual: no se recrea con texto ni se altera. */}
             <img src="/logo-ecoconecta.png" alt="EcoConecta Villas de San Pablo" width="220" height="73" />
           </a>
-          <nav>
-            <a href="/">Aprende</a>
-            <a href="/panel">Mi panel</a>
-          </nav>
+          <a href="/panel" className="enlace der">Mi panel</a>
         </header>
         <main className="contenedor">{children}</main>
         <footer className="pie">Villas de San Pablo · Barranquilla · Datos de demostración ficticios</footer>

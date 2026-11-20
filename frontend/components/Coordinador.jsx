@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { api, NOMBRE_ESTADO, NOMBRE_FLUJO } from "../lib/api";
 import Solicitud from "./Solicitud";
-import { Asignar, Boton, Programar, RegistrarRecoleccion } from "./Acciones";
+import { Asignar, Boton, RegistrarRecoleccion } from "./Acciones";
+import { IntegrarPersonal, ListaPersonal } from "./Personal";
 import Resumen from "./Resumen";
 
 const VISTAS = {
@@ -15,21 +16,30 @@ const VISTAS = {
 
 export default function Coordinador({ yo }) {
   const [bandeja, setBandeja] = useState(null);
-  const [recolectores, setRecolectores] = useState([]);
   const [vista, setVista] = useState("pendientes");
+  const [integrando, setIntegrando] = useState(false);
+  const [versionPersonal, setVersionPersonal] = useState(0);
   const cargar = () => api("/bandeja").then(setBandeja);
 
   useEffect(() => {
     cargar();
-    api("/recolectores").then(setRecolectores);
   }, []);
 
   if (!bandeja) return <p className="suave">Cargando bandeja…</p>;
   const cuenta = (estados) => bandeja.solicitudes.filter((s) => estados.includes(s.estado)).length;
-  const lista = vista === "casos" || vista === "resumen" ? [] : bandeja.solicitudes.filter((s) => VISTAS[vista].includes(s.estado));
+  const especial = ["casos", "resumen", "personal"].includes(vista);
+  const lista = especial ? [] : bandeja.solicitudes.filter((s) => VISTAS[vista].includes(s.estado));
 
   return (
     <>
+      {integrando ? (
+        <IntegrarPersonal
+          alCancelar={() => setIntegrando(false)}
+          alTerminar={() => { setIntegrando(false); setVersionPersonal((v) => v + 1); setVista("personal"); }}
+        />
+      ) : (
+        <button onClick={() => setIntegrando(true)} style={{ width: "100%" }}>+ Integrar nuevo reciclador / voluntario de huerta</button>
+      )}
       <h2>Bandeja {yo.flujo ? `· ${NOMBRE_FLUJO[yo.flujo]}` : "· todos los flujos"}</h2>
       <div className="pestanas">
         {Object.keys(VISTAS).map((v) => (
@@ -38,10 +48,12 @@ export default function Coordinador({ yo }) {
           </button>
         ))}
         <button className={vista === "casos" ? "activa" : ""} onClick={() => setVista("casos")}>WhatsApp ({bandeja.casos_whatsapp.length})</button>
+        <button className={vista === "personal" ? "activa" : ""} onClick={() => setVista("personal")}>Recicladores y voluntarios</button>
         <button className={vista === "resumen" ? "activa" : ""} onClick={() => setVista("resumen")}>Resumen</button>
       </div>
 
       {vista === "resumen" && <Resumen />}
+      {vista === "personal" && <ListaPersonal version={versionPersonal} />}
       {vista === "casos" && (
         bandeja.casos_whatsapp.length === 0 ? <p className="suave">No hay casos derivados desde WhatsApp.</p> :
           bandeja.casos_whatsapp.map((c) => (
@@ -51,14 +63,13 @@ export default function Coordinador({ yo }) {
             </article>
           ))
       )}
-      {lista.length === 0 && !["casos", "resumen"].includes(vista) && <p className="suave">No hay solicitudes en {vista}.</p>}
+      {lista.length === 0 && !especial && <p className="suave">No hay solicitudes en {vista}.</p>}
       {lista.map((s) => (
         <Solicitud key={s.codigo} s={s}>
           {s.estado === "recibida" && (
             <Boton secundario accion={() => api(`/solicitudes/${s.codigo}/revisar`, { metodo: "POST" })} alTerminar={cargar}>Marcar en revisión</Boton>
           )}
-          {["recibida", "en_revision", "asignada"].includes(s.estado) && <Asignar s={s} recolectores={recolectores} alTerminar={cargar} />}
-          {["asignada", "programada"].includes(s.estado) && <Programar s={s} alTerminar={cargar} />}
+          {["recibida", "en_revision", "asignada", "programada"].includes(s.estado) && <Asignar s={s} alTerminar={cargar} />}
           {s.estado === "programada" && <RegistrarRecoleccion s={s} alTerminar={cargar} />}
           {!["recolectada", "cancelada"].includes(s.estado) && (
             <Boton secundario accion={() => api(`/solicitudes/${s.codigo}/cancelar`, { metodo: "POST", cuerpo: { motivo: "Cancelada por coordinación" } })} alTerminar={cargar}>Cancelar</Boton>

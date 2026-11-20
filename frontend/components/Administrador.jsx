@@ -23,7 +23,7 @@ export default function Administrador({ yo }) {
 
 function Usuarios() {
   const [lista, setLista] = useState(null);
-  const vacio = { nombre: "", telefono: "", rol: "huertero", clave: "", piloto: true };
+  const vacio = { nombre: "", telefono: "", rol: "coordinador_huerta", clave: "", piloto: true };
   const [nuevo, setNuevo] = useState(vacio);
   const cargar = () => api("/usuarios").then(setLista);
   useEffect(() => { cargar(); }, []);
@@ -52,7 +52,7 @@ function Usuarios() {
           </tbody>
         </table>
       </div>
-      <h2>Agregar persona (coordinador, huertero, reciclador…)</h2>
+      <h2>Agregar cuenta (coordinación, administración o usuario)</h2>
       <div className="tarjeta">
         <div className="fila">
           <input placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} />

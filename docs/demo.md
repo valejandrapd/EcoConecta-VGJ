@@ -10,11 +10,11 @@
 ## Recorrido web (unos 5 minutos)
 
 1. **Información.** En el inicio, muestra los contenidos de separación, huerta, horarios y rutas.
-2. **Solicitud orgánica.** Ingresa con tu número (la unidad productiva). En "Ayúdame", escribe `cáscaras de plátano`: la sugerencia es *orgánico*. Elige Orgánico, escribe la disponibilidad (`mañanas`) y envía. Aparece el código `ORG-00xx` con estado *Recibida*, y llega el aviso `solicitud_recibida` por WhatsApp.
-3. **Enrutamiento y asignación.** Ingresa como coordinación de huerteros (3000000003). La solicitud está en *Pendientes*. Asígnala a "Carlos Huertero".
-4. **Programación.** En *Asignadas*, elige fecha y hora y pulsa "Programar y avisar". Llega `solicitud_programada` con día, hora y persona.
-5. **Recolección y puntos.** Ingresa como huertero (3000000002) y registra 4.5 kg. Vuelve como la unidad productiva: el estado es *Recolectada*, tienes 14 puntos y el historial muestra Recibida, Asignada, Programada y Recolectada.
-6. **Separación de flujos.** Ingresa como hogar (3000000005) y crea una solicitud *Reciclable*. Ingresa como coordinación de recicladores (3000000004): la ves en su bandeja, y en la de huerteros no aparece.
+2. **Solicitud orgánica.** Ingresa con tu número (la unidad productiva, Sector 1) y pulsa **Crear solicitud**. En "¿No sabes cuál es?", escribe `cáscaras de plátano`: aparece "Tu residuo es ORGÁNICO". Elige Orgánicos, lee el consejo (sin etiquetas), elige tamaño, lunes y jueves, la franja *Mañana*, confirma tu dirección y elige los puntos del huerto. Aparece el código `ORG-00xx` con estado *Recibida*, y llega el aviso `solicitud_recibida` por WhatsApp.
+3. **Asignación por zona y horario.** Ingresa como coordinación de huerta (3000000003). La solicitud está en *Pendientes*. En "Asignar reciclador" solo aparece Rosa (Sector 1, mañanas). Luis y Marta no salen porque son de otra zona.
+4. **Programación.** Elige uno de los días que se ofrecen (solo lunes o jueves) y una hora entre 7 y 12, y pulsa "Asignar y programar". Llega `solicitud_programada` con día, hora y el nombre del reciclador.
+5. **Recolección y puntos.** En *Programadas*, registra 4.5 kg (el reciclador ya entregó en la huerta). Vuelve como la unidad productiva: el estado es *Recolectada*, tienes 14 puntos, la trinitaria creció y el historial muestra Recibida, Asignada, Programada y Recolectada.
+6. **Separación de flujos.** Ingresa como hogar (3000000005) y crea una solicitud *Reciclable*: verás los consejos de cartón, envases y códigos de plástico. Ingresa como coordinación de reciclaje (3000000004): la ves en su bandeja, y en la de huerta no aparece. Con **Integrar nuevo reciclador / voluntario de huerta** agrega un reciclador del Sector 2 y comprueba que aparece como opción si su horario coincide.
 7. **Panel.** Abre la pestaña *Resumen* (por flujo, estado y periodo). Como administración (3000000007), muestra los usuarios piloto, los contenidos y los parámetros de puntos.
 
 ## Interacción por WhatsApp (unos 2 minutos)

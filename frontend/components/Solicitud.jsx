@@ -18,6 +18,7 @@ export default function Solicitud({ s, children }) {
       </div>
       <p className="suave" style={{ margin: "8px 0" }}>
         {s.tipo_generador === "unidad_productiva" ? "Unidad productiva" : "Hogar"}
+        {s.zona && ` · ${s.zona}`}
         {s.tamano && ` · Tamaño ${NOMBRE_TAMANO[s.tamano].toLowerCase()}`}
         {s.disponibilidad && ` · Disponible: ${s.disponibilidad}`}
         {s.bonificacion && ` · Puntos para: ${NOMBRE_BONIFICACION[s.bonificacion].toLowerCase()}`}
@@ -28,7 +29,7 @@ export default function Solicitud({ s, children }) {
           👤 {s.contacto.nombre} · 📞 {s.contacto.telefono} · 📍 {s.contacto.etiqueta ? `${s.contacto.etiqueta}: ` : ""}{s.contacto.direccion}
         </p>
       )}
-      {s.recolector && <p style={{ margin: "4px 0" }}>Persona encargada: <b>{s.recolector}</b></p>}
+      {s.reciclador && <p style={{ margin: "4px 0" }}>♻️ Reciclador: <b>{s.reciclador}</b></p>}
       {s.fecha_programada && (
         <p style={{ margin: "4px 0" }}>📅 {fecha(s.fecha_programada)} a las {String(s.hora_programada).slice(0, 5)}</p>
       )}

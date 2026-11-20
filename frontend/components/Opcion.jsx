@@ -4,8 +4,10 @@ export default function Opcion({ elegida, onClick, dibujo, nombre, detalle, rol 
   return (
     <button type="button" role={rol} aria-checked={!!elegida} className={`opcion ${className}`} onClick={onClick}>
       {dibujo}
-      <span className="nombre">{nombre}</span>
-      {detalle && <span className="detalle">{detalle}</span>}
+      <span className="textos">
+        <span className="nombre">{nombre}</span>
+        {detalle && <span className="detalle">{detalle}</span>}
+      </span>
     </button>
   );
 }

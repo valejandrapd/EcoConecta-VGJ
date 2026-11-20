@@ -1,5 +1,5 @@
 """Consulta de estado (RN-07), contenidos y derivación a la coordinación."""
-from datetime import date, time
+from datetime import time
 
 from sqlalchemy import select
 
@@ -7,17 +7,19 @@ from app import solicitudes
 from app.db import sesion
 from app.models import CasoCoordinacion, Contenido, Usuario
 
-from .conftest import ANA, BETO, mensaje, publicar
+from .conftest import ANA, BETO, mensaje, personal, proximo, publicar
+
+
+FECHA = proximo("mie")
 
 
 def _crear_programada(dueno_tel):
     with sesion() as s:
         dueno = s.scalar(select(Usuario).where(Usuario.telefono == "+" + dueno_tel))
-        carlos = s.scalar(select(Usuario).where(Usuario.rol == "huertero"))
-        coord = s.scalar(select(Usuario).where(Usuario.rol == "coordinador_huerteros"))
+        coord = s.scalar(select(Usuario).where(Usuario.rol == "coordinador_huerta"))
         sol = solicitudes.crear(s, dueno, "organico", observaciones="cáscaras")
-        solicitudes.asignar(s, sol, coord, carlos.id)
-        solicitudes.programar(s, sol, coord, date(2026, 11, 25), time(8, 30))
+        solicitudes.asignar(s, sol, coord, personal("Rosa").id)
+        solicitudes.programar(s, sol, coord, FECHA, time(8, 30))
         return sol.codigo
 
 
@@ -25,8 +27,8 @@ def test_estado_dueno(client, wa):
     codigo = _crear_programada(ANA)
     publicar(client, mensaje(ANA, texto=f"estado {codigo}"))
     texto = wa.textos_a(ANA)[-1]
-    assert codigo in texto and "Programada" in texto and "25/11/2026" in texto and "08:30" in texto
-    assert "Carlos" in texto and "Ruiz" not in texto and "+57" not in texto
+    assert codigo in texto and "Programada" in texto and f"{FECHA:%d/%m/%Y}" in texto and "08:30" in texto
+    assert "Rosa" in texto and "Martínez" not in texto and "+57" not in texto
 
 
 def test_estado_numero_ajeno_rechazado(client, wa):
@@ -59,7 +61,7 @@ def test_sin_contenido_deriva(client, wa):
 def test_pide_persona_registra_caso(client, wa):
     _crear_programada(ANA)
     publicar(client, mensaje(ANA, texto="quiero hablar con una persona"))
-    assert "coordinación de huerteros te contactará" in wa.textos_a(ANA)[-1]
+    assert "coordinación de huerta te contactará" in wa.textos_a(ANA)[-1]
     with sesion() as s:
         caso = s.scalar(select(CasoCoordinacion))
     assert caso.motivo == "pidio_persona" and caso.flujo == "organico"

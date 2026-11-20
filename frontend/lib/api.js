@@ -54,13 +54,12 @@ export const NOMBRE_ESTADO = {
   cancelada: "Cancelada",
 };
 export const NOMBRE_ROL = {
-  solicitante: "Solicitante",
-  coordinador_huerteros: "Coordinación de huerteros",
-  coordinador_recicladores: "Coordinación de recicladores",
-  huertero: "Huertero",
-  reciclador: "Reciclador",
+  solicitante: "Usuario",
+  coordinador_huerta: "Coordinación de huerta",
+  coordinador_reciclaje: "Coordinación de reciclaje",
   administrador: "Administración",
 };
+export const NOMBRE_PERSONAL = { reciclador: "Reciclador", voluntario_huerta: "Voluntario de huerta" };
 
 export function fecha(f) {
   if (!f) return "";
@@ -74,3 +73,15 @@ export const DIAS = [
   ["lun", "Lun", "Lunes"], ["mar", "Mar", "Martes"], ["mie", "Mié", "Miércoles"], ["jue", "Jue", "Jueves"],
   ["vie", "Vie", "Viernes"], ["sab", "Sáb", "Sábado"], ["dom", "Dom", "Domingo"],
 ];
+
+export function hora12(h) {
+  if (!h) return "";
+  const [hh, mm] = String(h).slice(0, 5).split(":").map(Number);
+  if (hh === 12 && mm === 0) return "12 m.";
+  const n = hh % 12 || 12;
+  return `${n}${mm ? `:${String(mm).padStart(2, "0")}` : ""} ${hh < 12 ? "a. m." : "p. m."}`;
+}
+
+export function nombresDias(dias) {
+  return DIAS.filter(([c]) => (dias || []).includes(c)).map(([, corto]) => corto).join(", ");
+}

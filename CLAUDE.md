@@ -12,6 +12,10 @@
 
 Toda pantalla sigue el Manual de Identidad Visual del reto: usa los tokens `--eco-*` de `frontend/app/globals.css` (no inventes tonos), Poppins para títulos e Inter para texto y botones, botón principal verde Eco con texto blanco, puntos y logros en amarillo, estados con texto e icono (no solo color), móvil primero. El logo es la imagen `public/logo-ecoconecta.png`: no se recrea con texto ni se recolorea, y se muestra con al menos 220 px de ancho sobre fondo claro. Las ilustraciones (`components/Ilustraciones.jsx`, `Insignias.jsx`) son planas, con un solo trazo verde bosque de 2 px.
 
+## Perfiles
+
+Solo cuatro perfiles inician sesión: `solicitante` (usuario), `coordinador_huerta`, `coordinador_reciclaje` y `administrador`. Recicladores y voluntarios de huerta son `personal_campo` sin cuenta: no les hagas pantallas. Solo los recicladores recolectan (también orgánicos). Al asignar, valida zona y cruce de días y horas (`solicitudes.ventana`). No uses la palabra "huertero": son "voluntarios de huerta".
+
 ## Estructura
 
 - `frontend/`: React con Next.js (JS, CSS propio). `/api/*` se reenvía al backend (`next.config.mjs`). Hay un panel por perfil en `components/`.

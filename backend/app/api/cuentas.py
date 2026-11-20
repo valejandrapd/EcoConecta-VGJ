@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from .. import auth, telefono
 from ..config import config
 from ..db import sesion
-from ..models import RECOLECTOR_DE_FLUJO, ROLES, TIPOS_GENERADOR, Contenido, Usuario
+from ..models import ROLES, TIPOS_GENERADOR, Contenido, Usuario
 from .. import solicitudes as negocio_insignias
 from ..solicitudes import puntos_de
 from .rutas import _actor, actor_id
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api")
 
 def _perfil(s, u: Usuario) -> dict:
     return {"id": u.id, "nombre": u.nombre, "rol": u.rol, "flujo": u.flujo, "piloto": u.piloto,
-            "tipo_generador": u.tipo_generador, "direccion": u.direccion,
+            "tipo_generador": u.tipo_generador, "direccion": u.direccion, "zona": u.zona,
             "puntos": puntos_de(s, u.id) if u.rol == "solicitante" else None}
 
 
@@ -31,6 +31,7 @@ class Registro(BaseModel):
     nombre: str = Field(min_length=2, max_length=120)
     telefono: str
     direccion: str = Field(min_length=3, max_length=255)
+    zona: str
     tipo_generador: str
     clave: str = Field(min_length=6, max_length=128)
     acepta_tratamiento_datos: bool
@@ -49,9 +50,12 @@ def registro(d: Registro):
     tel = telefono.normalizar(d.telefono)
     if not tel or d.tipo_generador not in TIPOS_GENERADOR:
         raise HTTPException(400, "Teléfono o tipo de generador inválido")
+    if d.zona not in config().zonas:
+        raise HTTPException(400, "Elige tu zona")
     try:
         with sesion() as s:
-            u = Usuario(nombre=d.nombre.strip(), telefono=tel, direccion=d.direccion.strip(), rol="solicitante",
+            u = Usuario(nombre=d.nombre.strip(), telefono=tel, direccion=d.direccion.strip(), zona=d.zona,
+                        rol="solicitante",
                         tipo_generador=d.tipo_generador, piloto=not config().modo_piloto,
                         clave_hash=auth.hash_clave(d.clave))
             s.add(u)
@@ -65,7 +69,7 @@ def registro(d: Registro):
 def login(d: Login):
     with sesion() as s:
         u = s.scalar(select(Usuario).where(Usuario.telefono == telefono.normalizar(d.telefono)))
-        if not u or not u.activo or not auth.verificar_clave(d.clave, u.clave_hash):
+        if not u or not u.activo or u.rol not in ROLES or not auth.verificar_clave(d.clave, u.clave_hash):
             raise HTTPException(401, "Teléfono o clave incorrectos")
         return {"token": auth.crear_token(u.id), "usuario": _perfil(s, u)}
 
@@ -82,6 +86,7 @@ class NuevoUsuario(BaseModel):
     telefono: str
     rol: str = "solicitante"
     direccion: str | None = None
+    zona: str | None = None
     tipo_generador: str | None = None
     piloto: bool = False
     clave: str = Field(min_length=6)
@@ -109,7 +114,7 @@ def crear_usuario(d: NuevoUsuario, uid: int = Depends(actor_id)):
     try:
         with sesion() as s:
             _exigir_admin(_actor(s, uid))
-            u = Usuario(nombre=d.nombre, telefono=tel, rol=d.rol, direccion=d.direccion,
+            u = Usuario(nombre=d.nombre, telefono=tel, rol=d.rol, direccion=d.direccion, zona=d.zona,
                         tipo_generador=d.tipo_generador, piloto=d.piloto, clave_hash=auth.hash_clave(d.clave))
             s.add(u)
             s.flush()
@@ -134,21 +139,6 @@ def cambiar_usuario(usuario_id: int, d: CambioUsuario, uid: int = Depends(actor_
         if d.activo is not None:
             u.activo = d.activo
         return _perfil(s, u)
-
-
-@router.get("/recolectores")
-def recolectores(uid: int = Depends(actor_id)):
-    """Huerteros o recicladores del flujo del coordinador (para asignar)."""
-    with sesion() as s:
-        actor = _actor(s, uid)
-        if actor.rol == "administrador":
-            roles = list(RECOLECTOR_DE_FLUJO.values())
-        elif actor.rol.startswith("coordinador_"):
-            roles = [RECOLECTOR_DE_FLUJO[actor.flujo]]
-        else:
-            raise HTTPException(403, "Solo coordinadores")
-        return [{"id": u.id, "nombre": u.nombre, "rol": u.rol} for u in s.scalars(
-            select(Usuario).where(Usuario.rol.in_(roles), Usuario.activo.is_(True)).order_by(Usuario.nombre))]
 
 
 # --------------------------------------------------------------- contenidos (5.2)

@@ -24,7 +24,7 @@ export function Hoja({ x, y, r = 0, s = 1, color = C.hoja }) {
     </g>
   );
 }
-function Banano({ x, y, r = 0, s = 1 }) {
+export function Banano({ x, y, r = 0, s = 1 }) {
   return (
     <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
       <path d="M0 0 C4 10 16 16 30 14 C24 20 8 20 -2 8 Z" fill={C.amarillo} {...trazo} />
@@ -34,7 +34,7 @@ function Banano({ x, y, r = 0, s = 1 }) {
     </g>
   );
 }
-function Naranja({ x, y, s = 1 }) {
+export function Naranja({ x, y, s = 1 }) {
   return (
     <g transform={`translate(${x} ${y}) scale(${s})`}>
       <path d="M-12 0 A12 12 0 0 0 12 0 Z" fill={C.naranja} {...trazo} />
@@ -43,7 +43,7 @@ function Naranja({ x, y, s = 1 }) {
     </g>
   );
 }
-function Manzana({ x, y, s = 1 }) {
+export function Manzana({ x, y, s = 1 }) {
   return (
     <g transform={`translate(${x} ${y}) scale(${s})`}>
       <path d="M-9 -12 C-12 -6 -4 -4 -4 0 C-4 4 -12 6 -9 12 L9 12 C12 6 4 4 4 0 C4 -4 12 -6 9 -12 Z" fill={C.crema} {...trazo} />
@@ -74,7 +74,7 @@ function Bolsa({ x, y, w, h, color, abierta = false, children }) {
 }
 
 // ---------- piezas reciclables ----------
-function Botella({ x, y, r = 0, s = 1 }) {
+export function Botella({ x, y, r = 0, s = 1 }) {
   return (
     <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
       <path d="M-4 -26 L4 -26 L4 -20 C10 -16 10 -12 10 -8 L10 18 C10 21 8 22 6 22 L-6 22 C-8 22 -10 21 -10 18 L-10 -8 C-10 -12 -10 -16 -4 -20 Z" fill={C.azulBotella} {...trazo} />
@@ -83,7 +83,7 @@ function Botella({ x, y, r = 0, s = 1 }) {
     </g>
   );
 }
-function Lata({ x, y, r = 0, s = 1 }) {
+export function Lata({ x, y, r = 0, s = 1 }) {
   return (
     <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
       <rect x="-8" y="-14" width="16" height="28" rx="3" fill={C.gris} {...trazo} />
@@ -92,7 +92,7 @@ function Lata({ x, y, r = 0, s = 1 }) {
     </g>
   );
 }
-function Caja({ x, y, w = 30, h = 22, r = 0 }) {
+export function Caja({ x, y, w = 30, h = 22, r = 0 }) {
   return (
     <g transform={`translate(${x} ${y}) rotate(${r})`}>
       <rect x={-w / 2} y={-h / 2} width={w} height={h} rx="2" fill={C.carton} {...trazo} />
@@ -101,7 +101,7 @@ function Caja({ x, y, w = 30, h = 22, r = 0 }) {
     </g>
   );
 }
-function Papel({ x, y, r = 0 }) {
+export function Papel({ x, y, r = 0 }) {
   return (
     <g transform={`translate(${x} ${y}) rotate(${r})`}>
       <rect x="-11" y="-14" width="22" height="28" rx="2" fill="#fff" {...trazo} />
@@ -239,6 +239,42 @@ export function Pin() {
     <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
       <path d="M12 22s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12Z" fill={C.naranja} {...trazo} strokeWidth={1.6} />
       <circle cx="12" cy="10" r="2.6" fill="#fff" {...trazo} strokeWidth={1.4} />
+    </svg>
+  );
+}
+
+// Cámara para el botón "Tómale una foto"
+export function Camara() {
+  return (
+    <Svg titulo="Cámara" vb="0 0 120 80">
+      <ellipse cx="60" cy="74" rx="40" ry="4" fill="#000" opacity=".08" />
+      <rect x="22" y="22" width="76" height="48" rx="10" fill={C.turquesa} {...trazo} />
+      <path d="M44 22 L50 12 L70 12 L76 22 Z" fill={C.verde} {...trazo} />
+      <circle cx="60" cy="46" r="16" fill="#fff" {...trazo} />
+      <circle cx="60" cy="46" r="9" fill={C.verde} {...trazo} />
+      <circle cx="56" cy="42" r="2.5" fill="#fff" />
+      <rect x="82" y="28" width="9" height="6" rx="2" fill={C.amarillo} {...trazo} strokeWidth={1.5} />
+    </Svg>
+  );
+}
+
+// Viñeta pequeña con un objeto, para los consejos
+export function Vineta({ children, titulo }) {
+  return (
+    <svg viewBox="0 0 60 60" width="56" height="56" role="img" aria-label={titulo}>
+      <circle cx="30" cy="30" r="28" fill="#E7F3E9" />
+      {children}
+    </svg>
+  );
+}
+
+// Código de identificación de resina: triángulo de flechas con el número
+export function CodigoPlastico({ n, ok }) {
+  const color = ok === "si" ? C.verde : ok === "no" ? "#8A9690" : C.naranja;
+  return (
+    <svg viewBox="0 0 48 46" width="48" height="46" role="img" aria-label={`Plástico número ${n}`}>
+      <path d="M24 4 L44 40 L4 40 Z" fill="none" stroke={color} strokeWidth="3.5" strokeLinejoin="round" strokeDasharray="14 4" />
+      <text x="24" y="34" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontWeight="700" fontSize="16" fill={T}>{n}</text>
     </svg>
   );
 }

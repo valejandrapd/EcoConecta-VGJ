@@ -1,4 +1,4 @@
-"""API del backend para la web (solicitante, coordinadores, recolectores y administrador).
+"""API del backend para la web (solicitante, coordinadores y administrador).
 
 Autenticación: `Authorization: Bearer <token>` (ver /api/auth/login). Para integraciones internas
 también se acepta `X-Service-Key` (SERVICE_API_KEY) + `X-Usuario-Id`. Cada ruta valida el perfil
@@ -19,8 +19,8 @@ from ..config import config
 from ..db import sesion
 from ..ia import cascada
 from ..ia.modelo import IANoDisponible
-from ..models import (COORDINADOR_DE_FLUJO, FLUJO_DE_ROL, CasoCoordinacion, DireccionUsuario, HistorialSolicitud,
-                      Solicitud, Usuario)
+from ..models import (COORDINADOR_DE_FLUJO, DIAS_SEMANA, FLUJO_DE_ROL, ROLES, TIPOS_PERSONAL, CasoCoordinacion,
+                      DireccionUsuario, HistorialSolicitud, PersonalCampo, Solicitud, Usuario)
 from ..whatsapp.mensajeria import purgar_vencidos
 
 
@@ -42,7 +42,7 @@ router = APIRouter(prefix="/api")
 
 def _actor(s, x_usuario_id: int) -> Usuario:
     u = s.get(Usuario, x_usuario_id)
-    if not u or not u.activo:
+    if not u or not u.activo or u.rol not in ROLES:
         raise HTTPException(401, "Usuario no válido")
     return u
 
@@ -62,7 +62,9 @@ def _sol(sol: Solicitud, actor: Usuario) -> dict:
          "dias_disponibles": sol.dias_disponibles.split(",") if sol.dias_disponibles else [],
          "hora_desde": sol.hora_desde, "hora_hasta": sol.hora_hasta, "bonificacion": sol.bonificacion,
          "fecha_programada": sol.fecha_programada, "hora_programada": sol.hora_programada,
-         "recolector": sol.recolector.nombre if sol.recolector else None,
+         "zona": sol.zona,
+         "reciclador": sol.reciclador.nombre_completo if sol.reciclador else None,
+         "reciclador_id": sol.reciclador_id,
          "coordinador": sol.coordinador.nombre if sol.coordinador else None,
          "puntos": sol.recoleccion.puntos if sol.recoleccion else None, "creada_en": sol.creada_en}
     if negocio.puede_ver_contacto(actor, sol):  # RN-07
@@ -91,6 +93,7 @@ class NuevaSolicitud(BaseModel):
     hora_hasta: time | None = None
     direccion_etiqueta: str | None = Field(None, max_length=60)
     bonificacion: str | None = None
+    zona: str | None = None
 
 
 @router.post("/solicitudes", status_code=201)
@@ -102,7 +105,7 @@ def crear_solicitud(d: NuevaSolicitud, uid: int = Depends(actor_id)):
                                              disponibilidad=d.disponibilidad, tamano=d.tamano, dias=d.dias,
                                              hora_desde=d.hora_desde, hora_hasta=d.hora_hasta,
                                              direccion_etiqueta=d.direccion_etiqueta,
-                                             bonificacion=d.bonificacion))
+                                             bonificacion=d.bonificacion, zona=d.zona))
         return _sol(sol, actor)
 
 
@@ -138,8 +141,8 @@ def mis_direcciones(uid: int = Depends(actor_id)):
         actor = _actor(s, uid)
         extra = s.scalars(select(DireccionUsuario).where(DireccionUsuario.usuario_id == actor.id)
                           .order_by(DireccionUsuario.etiqueta)).all()
-        return {"principal": actor.direccion,
-                "guardadas": [{"etiqueta": d.etiqueta, "direccion": d.direccion} for d in extra]}
+        return {"principal": actor.direccion, "zona": actor.zona,
+                "guardadas": [{"etiqueta": d.etiqueta, "direccion": d.direccion, "zona": d.zona} for d in extra]}
 
 
 # --------------------------------------------------------------- coordinación
@@ -166,7 +169,9 @@ def bandeja(estado: str | None = None, uid: int = Depends(actor_id)):
 
 
 class Asignacion(BaseModel):
-    recolector_id: int
+    reciclador_id: int
+    fecha: date | None = None  # si vienen fecha y hora, asigna y programa en un paso
+    hora: time | None = None
 
 
 class Programacion(BaseModel):
@@ -198,9 +203,27 @@ def revisar(codigo: str, uid: int = Depends(actor_id)):
     return _accion(codigo, uid, lambda s, sol, a: negocio.revisar(s, sol, a))
 
 
+@router.get("/solicitudes/{codigo}/opciones-asignacion")
+def opciones_asignacion(codigo: str, uid: int = Depends(actor_id)):
+    """Solo recicladores de la zona, con los días, horas y fechas que cruzan con lo que eligió el usuario."""
+    with sesion() as s:
+        actor = _actor(s, uid)
+        sol = _errores(lambda: negocio.obtener(s, codigo))
+        _errores(lambda: negocio._exigir_coordinador(actor, sol))
+        return [{"id": o["reciclador"].id, "nombre": o["reciclador"].nombre_completo, "zona": o["reciclador"].zona,
+                 "dias": o["dias"], "desde": o["desde"], "hasta": o["hasta"], "fechas": o["fechas"]}
+                for o in negocio.opciones_asignacion(s, sol)]
+
+
+def _asignar(s, sol, a, d: Asignacion):
+    negocio.asignar(s, sol, a, d.reciclador_id)
+    if d.fecha and d.hora:
+        negocio.programar(s, sol, a, d.fecha, d.hora)
+
+
 @router.post("/solicitudes/{codigo}/asignar")
 def asignar(codigo: str, d: Asignacion, uid: int = Depends(actor_id)):
-    return _accion(codigo, uid, lambda s, sol, a: negocio.asignar(s, sol, a, d.recolector_id))
+    return _accion(codigo, uid, lambda s, sol, a: _asignar(s, sol, a, d))
 
 
 @router.post("/solicitudes/{codigo}/programar")
@@ -219,15 +242,82 @@ def cancelar(codigo: str, d: Cancelacion, uid: int = Depends(actor_id)):
     return _accion(codigo, uid, lambda s, sol, a: negocio.cancelar(s, sol, a, d.motivo))
 
 
-@router.get("/asignaciones")
-def asignaciones(uid: int = Depends(actor_id)):
-    """Huertero o reciclador: sus solicitudes asignadas o programadas."""
+# --------------------------------------------------------------- personal de campo (sin cuenta)
+def _exigir_coordinacion(actor: Usuario):
+    if actor.rol not in COORDINADOR_DE_FLUJO.values() and actor.rol != "administrador":
+        raise HTTPException(403, "Solo coordinadores o administrador")
+
+
+def _personal(p: PersonalCampo) -> dict:
+    return {"id": p.id, "tipo": p.tipo, "nombre": p.nombre, "apellido": p.apellido, "zona": p.zona,
+            "dias": p.dias, "hora_desde": p.hora_desde, "hora_hasta": p.hora_hasta, "activo": p.activo}
+
+
+class NuevoPersonal(BaseModel):
+    tipo: str
+    nombre: str = Field(min_length=2, max_length=80)
+    apellido: str = Field(min_length=2, max_length=80)
+    zona: str | None = None
+    dias: list[str] = Field(min_length=1)
+    hora_desde: time
+    hora_hasta: time
+
+
+def _validar_personal(d: NuevoPersonal):
+    if d.tipo not in TIPOS_PERSONAL:
+        raise HTTPException(400, "tipo debe ser 'reciclador' o 'voluntario_huerta'")
+    if d.tipo == "reciclador" and d.zona not in config().zonas:
+        raise HTTPException(400, "Elige la zona del reciclador")
+    if any(x not in DIAS_SEMANA for x in d.dias):
+        raise HTTPException(400, "Día inválido")
+    if d.hora_desde >= d.hora_hasta:
+        raise HTTPException(400, "La hora de inicio debe ser anterior a la de fin")
+
+
+@router.get("/personal")
+def listar_personal(tipo: str | None = None, uid: int = Depends(actor_id)):
+    with sesion() as s:
+        _exigir_coordinacion(_actor(s, uid))
+        q = select(PersonalCampo).order_by(PersonalCampo.tipo, PersonalCampo.nombre)
+        if tipo:
+            q = q.where(PersonalCampo.tipo == tipo)
+        return [_personal(p) for p in s.scalars(q)]
+
+
+@router.post("/personal", status_code=201)
+def crear_personal(d: NuevoPersonal, uid: int = Depends(actor_id)):
+    """Integrar un reciclador (con zona) o un voluntario de huerta. No reciben usuario ni clave."""
+    _validar_personal(d)
     with sesion() as s:
         actor = _actor(s, uid)
-        sols = s.scalars(select(Solicitud).where(Solicitud.recolector_id == actor.id,
-                                                 Solicitud.estado.in_(["asignada", "programada"]))
-                         .order_by(Solicitud.fecha_programada)).all()
-        return [_sol(x, actor) for x in sols]
+        _exigir_coordinacion(actor)
+        p = PersonalCampo(tipo=d.tipo, nombre=d.nombre.strip(), apellido=d.apellido.strip(),
+                          zona=d.zona if d.tipo == "reciclador" else None,
+                          dias_servicio=",".join(x for x in DIAS_SEMANA if x in d.dias),
+                          hora_desde=d.hora_desde, hora_hasta=d.hora_hasta, creado_por_id=actor.id)
+        s.add(p)
+        s.flush()
+        return _personal(p)
+
+
+class CambioPersonal(BaseModel):
+    activo: bool
+
+
+@router.patch("/personal/{personal_id}")
+def cambiar_personal(personal_id: int, d: CambioPersonal, uid: int = Depends(actor_id)):
+    with sesion() as s:
+        _exigir_coordinacion(_actor(s, uid))
+        p = s.get(PersonalCampo, personal_id)
+        if not p:
+            raise HTTPException(404, "No existe")
+        p.activo = d.activo
+        return _personal(p)
+
+
+@router.get("/zonas")
+def zonas():
+    return list(config().zonas)
 
 
 @router.get("/resumen")

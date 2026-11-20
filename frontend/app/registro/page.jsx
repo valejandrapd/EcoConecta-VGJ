@@ -1,11 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, guardarSesion } from "../../lib/api";
 
 export default function Registro() {
-  const [f, setF] = useState({ nombre: "", telefono: "", direccion: "", tipo_generador: "hogar", clave: "", acepta_tratamiento_datos: false });
+  const [f, setF] = useState({ nombre: "", telefono: "", direccion: "", zona: "", tipo_generador: "hogar", clave: "", acepta_tratamiento_datos: false });
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [zonas, setZonas] = useState([]);
+  useEffect(() => { api("/zonas").then(setZonas).catch(() => {}); }, []);
   const cambiar = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
 
   async function enviar(e) {
@@ -32,6 +34,11 @@ export default function Registro() {
       <input id="tel" inputMode="tel" value={f.telefono} onChange={cambiar("telefono")} required />
       <label htmlFor="dir">Dirección</label>
       <input id="dir" value={f.direccion} onChange={cambiar("direccion")} placeholder="Manzana, casa o local" required />
+      <label htmlFor="zona">Zona</label>
+      <select id="zona" value={f.zona} onChange={cambiar("zona")} required>
+        <option value="">Elige tu zona…</option>
+        {zonas.map((z) => <option key={z} value={z}>{z}</option>)}
+      </select>
       <label htmlFor="tipo">Tipo de generador</label>
       <select id="tipo" value={f.tipo_generador} onChange={cambiar("tipo_generador")}>
         <option value="hogar">Hogar</option>

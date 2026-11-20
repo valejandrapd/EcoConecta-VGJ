@@ -19,8 +19,9 @@ export default function Inicio() {
       <section className="tarjeta">
         <h1>Separa, solicita y gana puntos</h1>
         <p>
-          EcoConecta conecta a hogares y negocios de Villas de San Pablo con los <b>huerteros</b> (residuos
-          orgánicos, para compostaje en la huerta) y los <b>recicladores</b> (residuos reciclables).
+          EcoConecta conecta a hogares y negocios de Villas de San Pablo con los <b>recicladores</b> de tu
+          zona, que recogen tus residuos <b>orgánicos</b> (para compostaje en la huerta comunitaria, con los
+          voluntarios de huerta) y tus <b>reciclables</b>.
         </p>
         <div className="fila">
           <a className="boton" href="/panel">Solicitar una recolección</a>
