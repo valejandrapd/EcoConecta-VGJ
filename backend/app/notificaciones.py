@@ -10,7 +10,7 @@ import logging
 from sqlalchemy import select
 
 from .config import config
-from .models import Solicitud, Usuario
+from .models import COORDINADOR_DE_FLUJO, Solicitud, Usuario
 from .whatsapp import mensajeria
 from .whatsapp.cliente import ClienteLog, ClienteWhatsApp, obtener_cliente
 from .whatsapp.textos import NOMBRE_FLUJO
@@ -31,13 +31,13 @@ class Notificador:
         mensajeria.enviar(
             s, _wa_id(sol.usuario.telefono), cliente=self.cliente, usuario_id=sol.usuario_id, intencion="solicitud_recibida",
             texto=f"Recibimos tu solicitud *{sol.codigo}* ({NOMBRE_FLUJO[sol.flujo]}). "
-                  "Te avisaremos cuando esté programada.",
+                  "Te avisaremos cuando esté programada. Consulta el estado escribiendo el código.",
             plantilla=cfg.plantilla_solicitud_recibida, parametros=[sol.codigo])
 
     def nueva_solicitud(self, s, sol: Solicitud):
         cfg = config()
         coordinadores = s.scalars(select(Usuario).where(
-            Usuario.rol == "coordinador", Usuario.flujo == sol.flujo, Usuario.activo.is_(True))).all()
+            Usuario.rol == COORDINADOR_DE_FLUJO[sol.flujo], Usuario.activo.is_(True))).all()
         for c in coordinadores:  # al coordinador no se le envían datos personales del ciudadano
             mensajeria.enviar(
                 s, _wa_id(c.telefono), cliente=self.cliente, usuario_id=c.id, intencion="nueva_solicitud",
@@ -48,7 +48,7 @@ class Notificador:
         cfg = config()
         fecha = f"{sol.fecha_programada:%d/%m/%Y}" if sol.fecha_programada else ""
         hora = f"{sol.hora_programada:%H:%M}" if sol.hora_programada else ""
-        encargado = sol.encargado.nombre.split()[0] if sol.encargado else ""
+        encargado = sol.recolector.nombre.split()[0] if sol.recolector else ""
         mensajeria.enviar(
             s, _wa_id(sol.usuario.telefono), cliente=self.cliente, usuario_id=sol.usuario_id, intencion="solicitud_programada",
             texto=f"Tu solicitud *{sol.codigo}* quedó programada para el {fecha} a las {hora}"

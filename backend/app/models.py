@@ -1,11 +1,8 @@
-"""Modelo de datos (PostgreSQL).
-
-Supuesto: la especificación principal no está en el repositorio; los campos de `usuarios`,
-`solicitudes` y `contenidos` son los mínimos que necesita el bot y se ajustarán a ella.
-"""
+"""Modelo de datos (PostgreSQL), alineado con el reto oficial (RN-01 a RN-08)."""
 from datetime import date, datetime, time, timezone
+from decimal import Decimal
 
-from sqlalchemy import (Boolean, Date, DateTime, ForeignKey, Integer, Sequence, String, Text, Time,
+from sqlalchemy import (Boolean, Date, DateTime, ForeignKey, Integer, Numeric, Sequence, String, Text, Time,
                         UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,7 +10,16 @@ from .db import Base
 
 FLUJOS = ("organico", "reciclable")
 PREFIJO_FLUJO = {"organico": "ORG", "reciclable": "REC"}
-ESTADOS_SOLICITUD = ("recibida", "programada", "completada", "cancelada")
+# RN-04: estados trazables (sección 5.4 del reto)
+ESTADOS_SOLICITUD = ("recibida", "en_revision", "asignada", "programada", "recolectada", "cancelada")
+TIPOS_GENERADOR = ("hogar", "unidad_productiva")
+# Perfiles (sección 4 y 5.1). Cada coordinador y recolector pertenece a un flujo (RN-01).
+ROLES = ("solicitante", "coordinador_huerteros", "coordinador_recicladores", "huertero", "reciclador",
+         "administrador")
+FLUJO_DE_ROL = {"coordinador_huerteros": "organico", "huertero": "organico",
+                "coordinador_recicladores": "reciclable", "reciclador": "reciclable"}
+COORDINADOR_DE_FLUJO = {"organico": "coordinador_huerteros", "reciclable": "coordinador_recicladores"}
+RECOLECTOR_DE_FLUJO = {"organico": "huertero", "reciclable": "reciclador"}
 
 SEQ_ORG = Sequence("seq_codigo_org", metadata=Base.metadata)
 SEQ_REC = Sequence("seq_codigo_rec", metadata=Base.metadata)
@@ -29,10 +35,16 @@ class Usuario(Base):
     nombre: Mapped[str] = mapped_column(String(120))
     telefono: Mapped[str] = mapped_column(String(16), unique=True, index=True)  # E.164
     direccion: Mapped[str | None] = mapped_column(String(255))
-    rol: Mapped[str] = mapped_column(String(20), default="ciudadano")  # ciudadano|coordinador|recolector
-    flujo: Mapped[str | None] = mapped_column(String(20))  # flujo que coordina (organico|reciclable)
+    rol: Mapped[str] = mapped_column(String(30), default="solicitante")
+    tipo_generador: Mapped[str | None] = mapped_column(String(20))  # hogar | unidad_productiva
+    piloto: Mapped[bool] = mapped_column(Boolean, default=False)  # RN-08: habilitado en el piloto
+    clave_hash: Mapped[str | None] = mapped_column(String(255))  # scrypt; nunca la clave en claro
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    @property
+    def flujo(self) -> str | None:
+        return FLUJO_DE_ROL.get(self.rol)
 
 
 class Solicitud(Base):
@@ -40,18 +52,51 @@ class Solicitud(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     codigo: Mapped[str] = mapped_column(String(16), unique=True, index=True)  # ORG-0042 | REC-0017
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
-    flujo: Mapped[str] = mapped_column(String(20))
-    estado: Mapped[str] = mapped_column(String(20), default="recibida")
-    descripcion: Mapped[str | None] = mapped_column(Text)
+    flujo: Mapped[str] = mapped_column(String(20), index=True)  # RN-01
+    tipo_generador: Mapped[str] = mapped_column(String(20), default="hogar")
+    estado: Mapped[str] = mapped_column(String(20), default="recibida", index=True)
+    observaciones: Mapped[str | None] = mapped_column(Text)
     direccion: Mapped[str | None] = mapped_column(String(255))
-    fecha_programada: Mapped[date | None] = mapped_column(Date)
-    hora_programada: Mapped[time | None] = mapped_column(Time)
-    encargado_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    disponibilidad: Mapped[str | None] = mapped_column(String(120))  # preferencia horaria
+    coordinador_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))  # RN-03
+    recolector_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))   # RN-03 (huertero/reciclador)
+    fecha_programada: Mapped[date | None] = mapped_column(Date)  # RN-02
+    hora_programada: Mapped[time | None] = mapped_column(Time)   # RN-02
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
     actualizada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, onupdate=ahora)
 
     usuario: Mapped[Usuario] = relationship(foreign_keys=[usuario_id])
-    encargado: Mapped[Usuario | None] = relationship(foreign_keys=[encargado_id])
+    coordinador: Mapped[Usuario | None] = relationship(foreign_keys=[coordinador_id])
+    recolector: Mapped[Usuario | None] = relationship(foreign_keys=[recolector_id])
+    recoleccion: Mapped["Recoleccion | None"] = relationship(back_populates="solicitud", uselist=False)
+
+
+class HistorialSolicitud(Base):
+    """RN-04: cada cambio de estado queda registrado con quién lo hizo."""
+    __tablename__ = "historial_solicitudes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    solicitud_id: Mapped[int] = mapped_column(ForeignKey("solicitudes.id"), index=True)
+    estado_anterior: Mapped[str | None] = mapped_column(String(20))
+    estado_nuevo: Mapped[str] = mapped_column(String(20))
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    nota: Mapped[str | None] = mapped_column(String(300))
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Recoleccion(Base):
+    """RN-05/RN-06: la recolección registrada y los puntos calculados con la regla parametrizada."""
+    __tablename__ = "recolecciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    solicitud_id: Mapped[int] = mapped_column(ForeignKey("solicitudes.id"), unique=True)
+    recolector_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    cantidad_kg: Mapped[Decimal] = mapped_column(Numeric(8, 2))
+    puntos: Mapped[int] = mapped_column(Integer)
+    regla: Mapped[str] = mapped_column(String(200))  # cómo se calcularon (explicable)
+    observaciones: Mapped[str | None] = mapped_column(Text)
+    registrada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    solicitud: Mapped[Solicitud] = relationship(back_populates="recoleccion")
 
 
 class Contenido(Base):

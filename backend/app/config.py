@@ -47,6 +47,14 @@ class Config:
     url_registro: str
     # API interna
     service_api_key: str
+    auth_secret: str
+    sesion_horas: int
+    # RN-08: solo usuarios marcados como piloto usan los servicios
+    modo_piloto: bool
+    # RN-06: regla de puntos parametrizable (valores de ejemplo, NO oficiales de FSD)
+    puntos_base: int
+    puntos_kg_organico: float
+    puntos_kg_reciclable: float
 
     @property
     def whatsapp_activo(self) -> bool:
@@ -80,4 +88,10 @@ def config() -> Config:
         url_formulario=os.environ.get("URL_FORMULARIO_SOLICITUD", "http://localhost:3000/solicitudes/nueva"),
         url_registro=os.environ.get("URL_REGISTRO", "http://localhost:3000/registro"),
         service_api_key=os.environ.get("SERVICE_API_KEY", ""),
+        auth_secret=os.environ.get("AUTH_SECRET", ""),
+        sesion_horas=_int("SESION_HORAS", 12),
+        modo_piloto=os.environ.get("MODO_PILOTO", "true").strip().lower() in {"1", "true", "si", "sí"},
+        puntos_base=_int("PUNTOS_BASE_RECOLECCION", 5),
+        puntos_kg_organico=_float("PUNTOS_POR_KG_ORGANICO", 2),
+        puntos_kg_reciclable=_float("PUNTOS_POR_KG_RECICLABLE", 3),
     )

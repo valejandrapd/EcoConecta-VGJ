@@ -95,11 +95,18 @@ def _texto(s, cuerpo: str, usuario, conv) -> Respuesta:
     # A partir de aquí, servicios solo para números registrados (información general sí se da)
     m = RE_CODIGO.search(cuerpo)
     pide_persona = t == "6" or any(p in t for p in PIDE_PERSONA)
-    if not usuario:
-        if t in {"2", "3", "4"} or m or pide_persona or conv.estado:
-            return Respuesta(textos.registro(), "registro")
-        info = _contenidos(s, usuario, conv, cuerpo)
-        return info if info.entendido else Respuesta(textos.registro(), "registro")
+    pide_puntos = t == "7" or t in {"puntos", "mis puntos"}
+    if not usuario or (config().modo_piloto and not usuario.piloto):
+        # RN-08: no registrado o fuera del piloto -> solo información general
+        aviso = textos.registro() if not usuario else textos.NO_PILOTO
+        if t in {"2", "3", "4"} or m or pide_persona or pide_puntos or conv.estado:
+            return Respuesta(aviso, "registro" if not usuario else "no_piloto")
+        info = _contenidos(s, None, conv, cuerpo)
+        return info if info.entendido else Respuesta(aviso, "registro" if not usuario else "no_piloto")
+
+    if pide_puntos:
+        from ..solicitudes import puntos_de
+        return Respuesta(textos.puntos(puntos_de(s, usuario.id)), "puntos")
 
     if t == "2":
         return Respuesta(textos.solicitar(), "solicitar")
@@ -143,6 +150,8 @@ def _clasificar_texto(cuerpo: str, conv) -> Respuesta:
 def _imagen(s, imagen: dict, usuario, conv) -> Respuesta:
     if not usuario:
         return Respuesta(textos.registro(), "registro")
+    if config().modo_piloto and not usuario.piloto:
+        return Respuesta(textos.NO_PILOTO, "no_piloto")
     try:
         datos = obtener_cliente().descargar_media(imagen.get("id", ""))
     except ErrorWhatsApp:

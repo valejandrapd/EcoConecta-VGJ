@@ -6,22 +6,33 @@ NOMBRE_FLUJO = {"organico": "orgánico", "reciclable": "reciclable", "general": 
 
 def menu() -> str:
     return (
-        "♻️ *EcoConecta*: recolección de residuos orgánicos y reciclables en tu barrio.\n\n"
+        "♻️ *EcoConecta Villas de San Pablo*: aprende a separar y solicita la recolección de tus residuos.\n\n"
         "Responde con un número:\n"
         "1️⃣ ¿Qué es EcoConecta?\n"
         "2️⃣ Solicitar una recolección\n"
         "3️⃣ ¿Mi residuo es orgánico o reciclable?\n"
         "4️⃣ Consultar una solicitud (ej.: ORG-0042)\n"
         "5️⃣ Horarios, rutas y tutorial\n"
-        "6️⃣ Hablar con una persona"
+        "6️⃣ Hablar con una persona\n"
+        "7️⃣ Mis puntos"
     )
 
 
 QUE_ES = (
-    "EcoConecta conecta a los hogares con la coordinación de recolección: separas tus residuos "
-    "orgánicos y reciclables, pides la recolección en la web y te avisamos cuándo pasan por ellos.\n"
+    "EcoConecta conecta a hogares y unidades productivas de Villas de San Pablo con los *huerteros* "
+    "(residuos orgánicos, para compostaje en la huerta) y los *recicladores* (residuos reciclables). "
+    "Pides la recolección, la coordinación te asigna día, hora y persona, y ganas puntos al entregar.\n"
     "Escribe *menú* para ver las opciones."
 )
+
+
+NO_PILOTO = ("Tu número está registrado, pero aún no está habilitado en el piloto de EcoConecta. "
+             "La coordinación te avisará cuando puedas solicitar recolecciones. "
+             "Mientras tanto puedo darte información general: escribe *menú*.")
+
+
+def puntos(total: int) -> str:
+    return f"Tienes *{total} puntos* por tus entregas en EcoConecta. ¡Gracias por separar! ♻️"
 
 
 def registro() -> str:
@@ -57,10 +68,12 @@ SIN_CONTENIDO = ("No tengo esa información en este momento. Le pasé tu pregunt
                  "y te contactarán pronto.")
 
 
+COORDINACION = {"organico": "La coordinación de huerteros", "reciclable": "La coordinación de recicladores",
+                "general": "La coordinación de EcoConecta"}
+
+
 def derivado(flujo: str) -> str:
-    nombre = NOMBRE_FLUJO.get(flujo, "general")
-    extra = "" if flujo == "general" else f" del flujo {nombre}"
-    return f"Listo 🙌. La coordinación{extra} te contactará pronto por este medio."
+    return f"Listo 🙌. {COORDINACION.get(flujo, COORDINACION['general'])} te contactará pronto por este medio."
 
 
 CONSEJO = {
@@ -89,8 +102,9 @@ def sugerencia(s) -> str:
     return ""
 
 
-ESTADOS = {"recibida": "Recibida (aún sin programar)", "programada": "Programada",
-           "completada": "Completada ✅", "cancelada": "Cancelada"}
+ESTADOS = {"recibida": "Recibida", "en_revision": "En revisión por la coordinación",
+           "asignada": "Asignada (pendiente de fecha y hora)", "programada": "Programada",
+           "recolectada": "Recolectada ✅", "cancelada": "Cancelada"}
 
 
 def estado_solicitud(sol) -> str:
@@ -101,6 +115,8 @@ def estado_solicitud(sol) -> str:
             lineas.append(f"Fecha: {sol.fecha_programada:%d/%m/%Y}")
         if sol.hora_programada:
             lineas.append(f"Hora: {sol.hora_programada:%H:%M}")
-        if sol.encargado:
-            lineas.append(f"Encargado: {sol.encargado.nombre.split()[0]}")
+        if sol.recolector:
+            lineas.append(f"Persona encargada: {sol.recolector.nombre.split()[0]}")
+    if sol.estado == "recolectada" and sol.recoleccion:
+        lineas.append(f"Puntos ganados: {sol.recoleccion.puntos}")
     return "\n".join(lineas)
