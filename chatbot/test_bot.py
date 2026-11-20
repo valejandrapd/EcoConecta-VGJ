@@ -1,9 +1,6 @@
 import os
-import tempfile
 
 import pytest
-
-os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "test.db")
 
 import bot  # noqa: E402
 import db  # noqa: E402
@@ -13,8 +10,8 @@ from clasificador import clasificar_texto  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def base_limpia():
-    if os.path.exists(db.RUTA):
-        os.remove(db.RUTA)
+    if os.path.exists(db.ruta()):
+        os.remove(db.ruta())
     db.iniciar()
 
 
