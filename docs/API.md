@@ -1,5 +1,7 @@
 # API REST de EcoConecta (`/api/v1`)
 
+> **Legado.** Esta API pertenece al bot original de `chatbot/` (Flask + SQLite) y no se despliega. La API actual está en `backend/app/api/rutas.py` (ver README).
+
 Sirve para conectar cualquier app (móvil) o web con el clasificador de residuos. Es el mismo núcleo
 (`chatbot/core.py`) que usa el bot de WhatsApp, así que **las solicitudes de todos los canales viven en la
 misma tabla** y se consultan con el mismo código `RES-AAAAMMDD-NNNN`.
