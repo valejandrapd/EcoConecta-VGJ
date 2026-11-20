@@ -4,7 +4,7 @@
 flowchart TB
     subgraph Canales
         WA[WhatsApp del ciudadano]
-        WEB[Web: formulario de solicitud y bandeja del coordinador]
+        WEB["frontend React/Next.js (:3000): solicitante, coordinadores, recolectores, admin"]
     end
     META[WhatsApp Business Cloud API - Meta]
     subgraph Backend [backend - FastAPI]
@@ -19,7 +19,7 @@ flowchart TB
         CLI[whatsapp/cliente.py: ClienteWhatsApp / ClienteLog]
         NOT[notificaciones.py: WhatsAppNotificador / LogNotificador]
         SOL[solicitudes.py]
-        API["/api (X-Service-Key)"]
+        API["/api (Bearer token, perfiles)"]
     end
     PG[(PostgreSQL)]
     CLAUDE[Claude API]
@@ -42,16 +42,47 @@ flowchart TB
 4. El bot normaliza `wa_id` a E.164, busca al usuario y aplica el límite diario. Luego detecta la intención: menú, opciones 1 a 6, código ORG/REC, foto, duda de residuo, contenidos o derivación.
 5. La respuesta sale por `mensajeria.enviar`, que decide entre texto y plantilla según la ventana de 24 h y deja el registro.
 
-## Tablas
+## Modelo de datos (PostgreSQL)
+
+```mermaid
+erDiagram
+    usuarios ||--o{ solicitudes : "solicita (usuario_id)"
+    usuarios ||--o{ solicitudes : "coordina (coordinador_id)"
+    usuarios ||--o{ solicitudes : "recolecta (recolector_id)"
+    solicitudes ||--o{ historial_solicitudes : "RN-04"
+    solicitudes ||--o| recolecciones : "RN-05"
+    usuarios ||--o{ recolecciones : "puntos"
+    usuarios ||--o{ casos_coordinacion : "derivados del bot"
+    usuarios ||--o{ mensajes_whatsapp : "metadatos"
+```
 
 | Tabla | Uso |
 |---|---|
-| `usuarios` | Ciudadanos, coordinadores (con `flujo`) y recolectores. `telefono` en E.164, único |
-| `solicitudes` | `codigo` ORG-/REC-, `flujo`, `estado`, fecha y hora programadas, `encargado_id` |
-| `contenidos` | Tutorial, horarios y rutas. Es la única fuente de la información educativa del bot |
+| `usuarios` | Perfil (`rol`), `telefono` E.164 único, `direccion`, `tipo_generador`, `piloto` (RN-08), `clave_hash` (scrypt) |
+| `solicitudes` | `codigo` ORG-/REC-, `flujo` (RN-01), `tipo_generador`, `estado`, `direccion`, `disponibilidad`, `observaciones`, `coordinador_id` y `recolector_id` (RN-03), `fecha_programada` y `hora_programada` (RN-02) |
+| `historial_solicitudes` | Cada cambio de estado, con quién lo hizo y una nota (RN-04) |
+| `recolecciones` | Kg entregados, puntos y la fórmula aplicada (RN-05, RN-06). Una por solicitud |
+| `contenidos` | Material educativo. Es la única fuente de información del bot |
 | `mensajes_whatsapp` | `wa_message_id` (UNIQUE), `wa_id`, `direccion`, `tipo`, `intencion`, `estado_envio`, `retener_hasta` |
-| `conversaciones_whatsapp` | Último mensaje entrante (ventana de 24 h), fallos seguidos, paso actual y último flujo |
-| `casos_coordinacion` | Bandeja del coordinador: casos derivados por el bot |
+| `conversaciones_whatsapp` | Ventana de 24 h, fallos seguidos, paso actual y último flujo |
+| `casos_coordinacion` | Casos derivados por el bot a la bandeja del coordinador |
+
+## Estados de una solicitud
+
+```mermaid
+stateDiagram-v2
+    [*] --> recibida
+    recibida --> en_revision: coordinador revisa
+    recibida --> asignada: coordinador asigna
+    en_revision --> asignada: coordinador asigna
+    asignada --> programada: día + hora + persona (RN-02)
+    programada --> programada: reprogramar
+    programada --> recolectada: recolector registra kg (RN-05)
+    recibida --> cancelada
+    en_revision --> cancelada
+    asignada --> cancelada
+    programada --> cancelada
+```
 
 ## Cascada de IA
 

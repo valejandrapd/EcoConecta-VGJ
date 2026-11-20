@@ -10,10 +10,13 @@
 
 ## Estructura
 
+- `frontend/`: React con Next.js (JS, CSS propio). `/api/*` se reenvía al backend (`next.config.mjs`). Hay un panel por perfil en `components/`.
+- `backend/app/solicitudes.py`: reglas RN-01 a RN-06. Todo cambio de estado pasa por `_cambiar_estado` (historial).
+- `backend/app/api/`: `rutas.py` (operación) y `cuentas.py` (auth, usuarios, contenidos). Comprueba siempre el perfil del actor.
 - `backend/app/whatsapp/`: el bot. Hay un solo webhook (`/webhook`) y un solo cliente (`cliente.py`) para el bot y las notificaciones. No dupliques código de envío: usa `mensajeria.enviar`, que aplica la ventana de 24 h y registra el envío.
 - `backend/app/ia/`: cascada reglas, luego texto, luego visión. Fotos siempre por `imagen.preparar` (sin EXIF, máx. 1024 px).
 - `backend/app/notificaciones.py`: `NOTIFICADOR=whatsapp|log`.
-- `chatbot/`: bot legado (Whapi + SQLite). No lo extiendas ni lo despliegues.
+- `chatbot/`: bot original; otro integrante lo está actualizando. No lo modifiques sin coordinar. Hoy incumple el reto (Whapi + SQLite) y no se despliega.
 
 ## Privacidad
 
@@ -22,13 +25,17 @@
 - RN-07: el estado de una solicitud solo se revela al número dueño. Si no existe o es ajena, el mensaje es el mismo.
 - No escribas secretos en el código: todo va por variables de entorno (`.env.example` sin valores).
 
+## Especificación
+
+El PDF oficial del reto está en el material del proyecto (sección 5: alcance; 7: RN-01 a RN-08; 8: tecnologías permitidas). Ante dudas, manda el PDF.
+
 ## Pruebas
 
 ```bash
 cd backend && TEST_DATABASE_URL=postgresql+psycopg://u:p@localhost:5432/ecoconecta_test python -m pytest
 ```
 
-Las pruebas usan PostgreSQL real y simulan Meta y Claude (`tests/conftest.py`: `ClienteFalso`, `publicar()` firma la carga).
+Frontend: `cd frontend && npm run build`. Las pruebas usan PostgreSQL real y simulan Meta y Claude (`tests/conftest.py`: `ClienteFalso`, `publicar()` firma la carga).
 
 ## Convenciones
 
