@@ -12,6 +12,7 @@ os.environ.update({
     "NOTIFICADOR": "log",
     "ANTHROPIC_API_KEY": "",
     "LIMITE_MENSAJES_DIA": "5",
+    "AUTH_SECRET": "secreto-de-firma-de-pruebas-0123",
 })
 
 import pytest  # noqa: E402
@@ -57,10 +58,15 @@ def base():
     crear_tablas()
     with sesion() as s:
         s.add_all([
-            Usuario(nombre="Ana Pérez", telefono="+" + ANA, direccion="Calle 10 # 1-2"),
-            Usuario(nombre="Beto Gómez", telefono="+" + BETO, direccion="Carrera 5 # 9-9"),
-            Usuario(nombre="Carlos Ruiz", telefono="+573000000002", rol="recolector"),
-            Usuario(nombre="Coord Org", telefono="+573000000003", rol="coordinador", flujo="organico"),
+            Usuario(nombre="Ana Pérez", telefono="+" + ANA, direccion="Calle 10 # 1-2", piloto=True,
+                    tipo_generador="unidad_productiva"),
+            Usuario(nombre="Beto Gómez", telefono="+" + BETO, direccion="Carrera 5 # 9-9", piloto=True),
+            Usuario(nombre="Carlos Ruiz", telefono="+573000000002", rol="huertero"),
+            Usuario(nombre="Coord Org", telefono="+573000000003", rol="coordinador_huerteros"),
+            Usuario(nombre="Coord Rec", telefono="+573000000004", rol="coordinador_recicladores"),
+            Usuario(nombre="Rosa Rec", telefono="+573000000006", rol="reciclador"),
+            Usuario(nombre="Admin", telefono="+573000000007", rol="administrador"),
+            Usuario(nombre="Dora Fuera", telefono="+573005550000", direccion="Mz 1", piloto=False),
         ])
     yield
 
@@ -98,6 +104,13 @@ def publicar(client, carga, secreto=SECRETO):
     cuerpo = json.dumps(carga).encode()
     return client.post("/webhook", content=cuerpo, headers={
         "Content-Type": "application/json", "X-Hub-Signature-256": firmar(cuerpo, secreto)})
+
+
+def usuario(rol=None, tel=None):
+    from sqlalchemy import select
+    with sesion() as s:
+        q = select(Usuario).where(Usuario.telefono == "+" + tel) if tel else select(Usuario).where(Usuario.rol == rol)
+        return s.scalar(q)
 
 
 def jpeg_con_exif(ancho=3000, alto=2000) -> bytes:

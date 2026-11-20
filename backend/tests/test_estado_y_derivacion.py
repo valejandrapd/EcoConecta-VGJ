@@ -13,9 +13,11 @@ from .conftest import ANA, BETO, mensaje, publicar
 def _crear_programada(dueno_tel):
     with sesion() as s:
         dueno = s.scalar(select(Usuario).where(Usuario.telefono == "+" + dueno_tel))
-        carlos = s.scalar(select(Usuario).where(Usuario.rol == "recolector"))
-        sol = solicitudes.crear(s, dueno, "organico", "cáscaras")
-        solicitudes.programar(s, sol.codigo, date(2026, 11, 25), time(8, 30), carlos.id)
+        carlos = s.scalar(select(Usuario).where(Usuario.rol == "huertero"))
+        coord = s.scalar(select(Usuario).where(Usuario.rol == "coordinador_huerteros"))
+        sol = solicitudes.crear(s, dueno, "organico", observaciones="cáscaras")
+        solicitudes.asignar(s, sol, coord, carlos.id)
+        solicitudes.programar(s, sol, coord, date(2026, 11, 25), time(8, 30))
         return sol.codigo
 
 
@@ -48,7 +50,7 @@ def test_contenidos_solo_de_la_tabla(client, wa):
 
 
 def test_sin_contenido_deriva(client, wa):
-    publicar(client, mensaje(ANA, texto="¿qué ruta pasa por mi barrio?"))
+    publicar(client, mensaje(ANA, texto="¿qué ruta pasa por mi sector?"))
     assert "coordinación" in wa.textos_a(ANA)[0]
     with sesion() as s:
         assert s.scalar(select(CasoCoordinacion.motivo)) == "sin_contenido"
@@ -57,7 +59,7 @@ def test_sin_contenido_deriva(client, wa):
 def test_pide_persona_registra_caso(client, wa):
     _crear_programada(ANA)
     publicar(client, mensaje(ANA, texto="quiero hablar con una persona"))
-    assert "te contactará" in wa.textos_a(ANA)[-1]
+    assert "coordinación de huerteros te contactará" in wa.textos_a(ANA)[-1]
     with sesion() as s:
         caso = s.scalar(select(CasoCoordinacion))
     assert caso.motivo == "pidio_persona" and caso.flujo == "organico"
