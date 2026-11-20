@@ -1,4 +1,6 @@
-"""Lógica del chatbot de clasificación de residuos (independiente de Flask para poder probarla).
+"""Adaptador de WhatsApp: traduce mensajes de Whapi a llamadas a `core` y arma las respuestas.
+
+La lógica de clasificación vive en `core.py` (la misma que usa la API REST para apps y webs).
 
 Flujo:
   1. Llega un texto con el residuo  -> se crea una solicitud con ID único (RES-AAAAMMDD-NNNN).
@@ -7,8 +9,9 @@ Flujo:
 """
 import logging
 
+import core
 import db
-from clasificador import ORGANICO, RECICLABLE, clasificar_texto
+from clasificador import ORGANICO, RECICLABLE
 
 log = logging.getLogger("ecoconecta")
 
@@ -68,29 +71,26 @@ def _procesar_texto(tel, texto, enviar):
         res = fila["categoria"] or "pendiente (esperando foto)"
         return enviar(tel, f"Solicitud *{fila['codigo']}*: {res}.")
 
-    codigo = db.crear(tel, texto)
-    categoria = clasificar_texto(texto)
-    if categoria:
-        db.resolver(codigo, categoria, "texto")
-        return enviar(tel, _respuesta_final(codigo, categoria, "texto"))
+    r = core.registrar_texto(tel, texto, canal="whatsapp")
+    if r["categoria"]:
+        return enviar(tel, _respuesta_final(r["codigo"], r["categoria"], "texto"))
 
-    enviar(tel, f"Solicitud *{codigo}* registrada.\n"
+    enviar(tel, f"Solicitud *{r['codigo']}* registrada.\n"
                 "No logré identificar ese residuo solo con el texto. "
                 "📷 *Envíame una foto del residuo* y lo identifico por cámara.")
 
 
 def _procesar_foto(tel, imagen, enviar, descargar_imagen, clasificar_foto):
     pendiente = db.pendiente_de_foto(tel)
-    codigo = pendiente["codigo"] if pendiente else db.crear(tel, "(solo foto)")
+    codigo = pendiente["codigo"] if pendiente else db.crear(tel, "(solo foto)", "whatsapp")
     try:
         datos, mime = descargar_imagen(imagen)
-        categoria, objeto = clasificar_foto(datos, mime)
+        r = core.adjuntar_foto(tel, datos, mime, clasificar_foto, canal="whatsapp", codigo=codigo)
     except Exception:  # noqa: BLE001 - el usuario debe recibir una respuesta amable
         log.exception("Fallo al procesar la foto de la solicitud %s", codigo)
         return enviar(tel, f"Solicitud *{codigo}*: no pude procesar la foto. Intenta enviarla de nuevo, por favor.")
 
-    if categoria == "NO_SE_VE":
+    if r["foto_ilegible"]:
         return enviar(tel, f"Solicitud *{codigo}*: no distingo el residuo en la foto. "
                            "Toma otra foto más cerca y con buena luz 📷")
-    db.resolver(codigo, categoria, "foto")
-    enviar(tel, _respuesta_final(codigo, categoria, "foto", objeto))
+    enviar(tel, _respuesta_final(codigo, r["categoria"], "foto", r["objeto"]))
