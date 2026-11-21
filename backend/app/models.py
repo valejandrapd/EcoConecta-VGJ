@@ -25,6 +25,8 @@ COORDINADOR_DE_FLUJO = {"organico": "coordinador_huerta", "reciclable": "coordin
 # Personal de campo SIN cuenta: los registra la coordinación. Solo los recicladores recolectan
 # (también los orgánicos); los voluntarios de huerta no recolectan.
 TIPOS_PERSONAL = ("reciclador", "voluntario_huerta")
+# Qué personal integra cada coordinación (el administrador puede ambos)
+PERSONAL_DE_COORDINADOR = {"coordinador_reciclaje": "reciclador", "coordinador_huerta": "voluntario_huerta"}
 
 SEQ_ORG = Sequence("seq_codigo_org", metadata=Base.metadata)
 SEQ_REC = Sequence("seq_codigo_rec", metadata=Base.metadata)

@@ -34,11 +34,14 @@ export default function Coordinador({ yo }) {
     <>
       {integrando ? (
         <IntegrarPersonal
+          yo={yo}
           alCancelar={() => setIntegrando(false)}
           alTerminar={() => { setIntegrando(false); setVersionPersonal((v) => v + 1); setVista("personal"); }}
         />
       ) : (
-        <button onClick={() => setIntegrando(true)} style={{ width: "100%" }}>+ Integrar nuevo reciclador / voluntario de huerta</button>
+        <button onClick={() => setIntegrando(true)} style={{ width: "100%" }}>
+          + {yo.rol === "coordinador_reciclaje" ? "Integrar nuevo reciclador" : yo.rol === "coordinador_huerta" ? "Integrar nuevo voluntario de huerta" : "Integrar nuevo reciclador / voluntario de huerta"}
+        </button>
       )}
       <h2>Bandeja {yo.flujo ? `· ${NOMBRE_FLUJO[yo.flujo]}` : "· todos los flujos"}</h2>
       <div className="pestanas">
@@ -48,7 +51,7 @@ export default function Coordinador({ yo }) {
           </button>
         ))}
         <button className={vista === "casos" ? "activa" : ""} onClick={() => setVista("casos")}>WhatsApp ({bandeja.casos_whatsapp.length})</button>
-        <button className={vista === "personal" ? "activa" : ""} onClick={() => setVista("personal")}>Recicladores y voluntarios</button>
+        <button className={vista === "personal" ? "activa" : ""} onClick={() => setVista("personal")}>{yo.rol === "coordinador_reciclaje" ? "Recicladores" : yo.rol === "coordinador_huerta" ? "Voluntarios de huerta" : "Recicladores y voluntarios"}</button>
         <button className={vista === "resumen" ? "activa" : ""} onClick={() => setVista("resumen")}>Resumen</button>
       </div>
 
@@ -71,9 +74,6 @@ export default function Coordinador({ yo }) {
           )}
           {["recibida", "en_revision", "asignada", "programada"].includes(s.estado) && <Asignar s={s} alTerminar={cargar} />}
           {s.estado === "programada" && <RegistrarRecoleccion s={s} alTerminar={cargar} />}
-          {!["recolectada", "cancelada"].includes(s.estado) && (
-            <Boton secundario accion={() => api(`/solicitudes/${s.codigo}/cancelar`, { metodo: "POST", cuerpo: { motivo: "Cancelada por coordinación" } })} alTerminar={cargar}>Cancelar</Boton>
-          )}
           <p className="suave">Estado: {NOMBRE_ESTADO[s.estado]}{s.coordinador ? ` · Coordina: ${s.coordinador}` : ""}</p>
         </Solicitud>
       ))}

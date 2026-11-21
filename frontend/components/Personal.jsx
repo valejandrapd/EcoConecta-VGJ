@@ -8,8 +8,12 @@ const VACIO = { tipo: "", nombre: "", apellido: "", zona: "", dias: [], hora_des
 
 // Formulario "Integrar nuevo reciclador / voluntario de huerta". El personal de campo no tiene
 // cuenta: la coordinación le avisa por sus propios medios.
-export function IntegrarPersonal({ alTerminar, alCancelar }) {
-  const [f, setF] = useState(VACIO);
+// Tipo que integra cada coordinación; el administrador elige.
+const TIPO_DE_ROL = { coordinador_reciclaje: "reciclador", coordinador_huerta: "voluntario_huerta" };
+
+export function IntegrarPersonal({ yo, alTerminar, alCancelar }) {
+  const fijo = TIPO_DE_ROL[yo?.rol];
+  const [f, setF] = useState({ ...VACIO, tipo: fijo || "" });
   const [zonas, setZonas] = useState([]);
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -25,7 +29,7 @@ export function IntegrarPersonal({ alTerminar, alCancelar }) {
     setEnviando(true);
     try {
       await api("/personal", { metodo: "POST", cuerpo: { ...f, zona: esReciclador ? f.zona : null } });
-      setF(VACIO);
+      setF({ ...VACIO, tipo: fijo || "" });
       alTerminar?.();
     } catch (err) {
       setError(err.message);
@@ -36,13 +40,16 @@ export function IntegrarPersonal({ alTerminar, alCancelar }) {
 
   return (
     <form className="tarjeta" onSubmit={guardar}>
-      <h2 style={{ marginTop: 0 }}>Integrar nuevo reciclador o voluntario de huerta</h2>
-      <div className="opciones" role="radiogroup" aria-label="Tipo">
+      <h2 style={{ marginTop: 0 }}>
+        {fijo === "reciclador" ? "Integrar nuevo reciclador" : fijo === "voluntario_huerta" ? "Integrar nuevo voluntario de huerta" : "Integrar nuevo reciclador o voluntario de huerta"}
+      </h2>
+      {fijo === "voluntario_huerta" && <p className="suave">Los voluntarios apoyan en la huerta. No se asignan a recolecciones.</p>}
+      {!fijo && <div className="opciones" role="radiogroup" aria-label="Tipo">
         <Opcion elegida={f.tipo === "reciclador"} onClick={() => setF({ ...f, tipo: "reciclador" })}
           dibujo={<span style={{ fontSize: 36 }} aria-hidden="true">♻️</span>} nombre="Reciclador" detalle="Recoge las solicitudes de su zona" />
         <Opcion elegida={f.tipo === "voluntario_huerta"} onClick={() => setF({ ...f, tipo: "voluntario_huerta" })}
           dibujo={<span style={{ fontSize: 36 }} aria-hidden="true">🌱</span>} nombre="Voluntario de huerta" detalle="Apoya en la huerta. No recoge" />
-      </div>
+      </div>}
       {f.tipo && (
         <>
           <div className="fila">

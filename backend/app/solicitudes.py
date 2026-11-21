@@ -265,8 +265,9 @@ def registrar_recoleccion(s, sol: Solicitud, actor: Usuario, cantidad_kg: Decima
 
 
 def cancelar(s, sol: Solicitud, actor: Usuario, motivo: str | None = None) -> Solicitud:
-    if not (actor.id == sol.usuario_id or _es_coordinador(actor, sol)):
-        raise SinPermiso("Solo el solicitante o el coordinador pueden cancelar")
+    """Solo el usuario dueño cancela (y el administrador, para soporte). La coordinación no cancela."""
+    if not (actor.id == sol.usuario_id or actor.rol == "administrador"):
+        raise SinPermiso("Solo el usuario que hizo la solicitud puede cancelarla")
     if sol.estado in ("recolectada", "cancelada"):
         raise ErrorSolicitud(f"La solicitud ya está {sol.estado}")
     _cambiar_estado(s, sol, "cancelada", actor, motivo)

@@ -154,6 +154,28 @@ def test_sin_clave_de_servicio(client):
     assert client.get("/api/bandeja", headers={"X-Usuario-Id": "1"}).status_code == 401
 
 
+def test_solo_el_usuario_cancela(client, wa):
+    cod = _sol(client, usuario(tel=ANA))
+    for otro in (usuario("coordinador_huerta"), usuario(tel=BETO)):
+        assert client.post(f"/api/solicitudes/{cod}/cancelar", headers=h(otro), json={}).status_code in (403, 404)
+
+
+def test_coordinacion_cambia_la_fecha(client, wa):
+    ana, coord, rosa = usuario(tel=ANA), usuario("coordinador_huerta"), personal("Rosa")
+    cod = client.post("/api/solicitudes", headers=h(ana), json={"flujo": "organico", "dias": ["lun", "mie"],
+                                                               "hora_desde": "08:00", "hora_hasta": "11:00"}).json()["codigo"]
+    client.post(f"/api/solicitudes/{cod}/asignar", headers=h(coord),
+                json={"reciclador_id": rosa.id, "fecha": str(proximo("lun")), "hora": "09:00"})
+    # Nueva fecha: sigue limitada a lo que eligió el usuario y al horario de Rosa
+    r = client.post(f"/api/solicitudes/{cod}/programar", headers=h(coord), json={"fecha": str(proximo("mar")), "hora": "09:00"})
+    assert r.status_code == 400
+    r = client.post(f"/api/solicitudes/{cod}/programar", headers=h(coord), json={"fecha": str(proximo("mie")), "hora": "10:30"})
+    assert r.status_code == 200 and r.json()["fecha_programada"] == str(proximo("mie"))
+    assert r.json()["reciclador"] == "Rosa Martínez"
+    avisos = [e for e in wa.enviados if e[1] == ANA and e[0] == "plantilla" and e[2] == "solicitud_programada"]
+    assert len(avisos) == 2  # el usuario recibe el aviso del cambio
+
+
 def test_cancelar_queda_en_historial(client, wa):
     ana = usuario(tel=ANA)
     cod = _sol(client, ana)

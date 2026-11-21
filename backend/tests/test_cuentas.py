@@ -64,9 +64,16 @@ def test_integrar_personal_de_campo(client):
     assert r.status_code == 201 and r.json()["dias"] == ["lun", "sab"] and r.json()["zona"] == "Sector 2"
     # El reciclador necesita zona; el voluntario de huerta no (y no se le guarda)
     assert client.post("/api/personal", headers=h(coord), json={**rec, "zona": None}).status_code == 400
-    vol = client.post("/api/personal", headers=h(usuario("coordinador_huerta")),
+    c_huerta = usuario("coordinador_huerta")
+    vol = client.post("/api/personal", headers=h(c_huerta),
                       json={**rec, "tipo": "voluntario_huerta", "nombre": "Eva"}).json()
     assert vol["zona"] is None and vol["tipo"] == "voluntario_huerta"
+    # Cada coordinación integra solo su tipo: reciclaje -> recicladores, huerta -> voluntarios
+    assert client.post("/api/personal", headers=h(c_huerta), json=rec).status_code == 403
+    assert client.post("/api/personal", headers=h(coord),
+                       json={**rec, "tipo": "voluntario_huerta"}).status_code == 403
+    assert {p["tipo"] for p in client.get("/api/personal", headers=h(c_huerta)).json()} == {"voluntario_huerta"}
+    assert client.patch(f"/api/personal/{vol['id']}", headers=h(coord), json={"activo": False}).status_code == 403
     assert client.post("/api/personal", headers=h(coord), json={**rec, "hora_hasta": "06:00"}).status_code == 400
     # Un solicitante no puede integrar personal
     assert client.post("/api/personal", headers=h(usuario(tel="573001112233")), json=rec).status_code == 403

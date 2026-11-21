@@ -19,7 +19,7 @@ from ..config import config
 from ..db import sesion
 from ..ia import cascada
 from ..ia.modelo import IANoDisponible
-from ..models import (COORDINADOR_DE_FLUJO, DIAS_SEMANA, FLUJO_DE_ROL, ROLES, TIPOS_PERSONAL, CasoCoordinacion,
+from ..models import (COORDINADOR_DE_FLUJO, DIAS_SEMANA, FLUJO_DE_ROL, PERSONAL_DE_COORDINADOR, ROLES, TIPOS_PERSONAL, CasoCoordinacion,
                       DireccionUsuario, HistorialSolicitud, PersonalCampo, Solicitud, Usuario)
 from ..whatsapp.mensajeria import purgar_vencidos
 
@@ -274,11 +274,21 @@ def _validar_personal(s, d: NuevoPersonal):
         raise HTTPException(400, "La hora de inicio debe ser anterior a la de fin")
 
 
+def _exigir_tipo_propio(actor: Usuario, tipo: str):
+    """La coordinación de reciclaje gestiona recicladores; la de huerta, voluntarios de huerta."""
+    if actor.rol != "administrador" and PERSONAL_DE_COORDINADOR.get(actor.rol) != tipo:
+        raise HTTPException(403, "Tu coordinación no gestiona ese tipo de personal")
+
+
 @router.get("/personal")
 def listar_personal(tipo: str | None = None, uid: int = Depends(actor_id)):
+    """Personal que gestiona el actor (el administrador ve todo)."""
     with sesion() as s:
-        _exigir_coordinacion(_actor(s, uid))
+        actor = _actor(s, uid)
+        _exigir_coordinacion(actor)
         q = select(PersonalCampo).order_by(PersonalCampo.tipo, PersonalCampo.nombre)
+        if actor.rol != "administrador":
+            q = q.where(PersonalCampo.tipo == PERSONAL_DE_COORDINADOR[actor.rol])
         if tipo:
             q = q.where(PersonalCampo.tipo == tipo)
         return [_personal(p) for p in s.scalars(q)]
@@ -291,6 +301,7 @@ def crear_personal(d: NuevoPersonal, uid: int = Depends(actor_id)):
         actor = _actor(s, uid)
         _exigir_coordinacion(actor)
         _validar_personal(s, d)
+        _exigir_tipo_propio(actor, d.tipo)
         p = PersonalCampo(tipo=d.tipo, nombre=d.nombre.strip(), apellido=d.apellido.strip(),
                           zona=d.zona if d.tipo == "reciclador" else None,
                           dias_servicio=",".join(x for x in DIAS_SEMANA if x in d.dias),
@@ -307,10 +318,12 @@ class CambioPersonal(BaseModel):
 @router.patch("/personal/{personal_id}")
 def cambiar_personal(personal_id: int, d: CambioPersonal, uid: int = Depends(actor_id)):
     with sesion() as s:
-        _exigir_coordinacion(_actor(s, uid))
+        actor = _actor(s, uid)
+        _exigir_coordinacion(actor)
         p = s.get(PersonalCampo, personal_id)
         if not p:
             raise HTTPException(404, "No existe")
+        _exigir_tipo_propio(actor, p.tipo)
         p.activo = d.activo
         return _personal(p)
 
