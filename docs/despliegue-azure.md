@@ -7,7 +7,7 @@ EcoConecta corre en Azure con tres servicios administrados. No hace falta un ser
 | Web (Next.js) | Azure Container Apps (`ecoconecta-web`) | HTTPS público. Se apaga sin tráfico (`min-replicas 0`) |
 | API y webhook de WhatsApp (FastAPI) | Azure Container Apps (`ecoconecta-api`) | HTTPS público. Encendida siempre (`MIN_REPLICAS=1`) para que el webhook responda rápido |
 | Base de datos | Azure Database for PostgreSQL, servidor flexible (`ecoconecta-pg-<sufijo>`) | PostgreSQL 16, Burstable B1ms, 32 GB, conexión con TLS |
-| IA | Azure OpenAI (`ecoconecta-ia-<sufijo>`, modelo `gpt-4o-mini`) | Proveedor autorizado por el reto, pagado con el crédito de la suscripción |
+| IA | Azure OpenAI (`ecoconecta-ia-<sufijo>`, modelo `gpt-4.1-mini`) | Proveedor autorizado por el reto, pagado con el crédito de la suscripción |
 | Imágenes | Azure Container Registry (`ecoconecta<sufijo>`) | Las imágenes se construyen en Azure (o con Docker local si la suscripción no lo permite) |
 
 Las claves (base de datos, IA, WhatsApp, `AUTH_SECRET`) viajan como **secretos de Container Apps**. No quedan en el código ni en las imágenes.
@@ -60,7 +60,7 @@ Son cifras de referencia. Revisa la calculadora de Azure para tu región.
 
 - PostgreSQL B1ms con 32 GB: unos US$15 al mes.
 - Container Registry Basic: unos US$5 al mes.
-- Azure OpenAI `gpt-4o-mini`: centavos por cientos de consultas (se cobra por uso).
+- Azure OpenAI `gpt-4.1-mini`: centavos por cientos de consultas (se cobra por uso).
 - Container Apps: la web casi siempre en cero; la API encendida, unos US$5 a 10 al mes. Hay una cuota gratuita mensual.
 
 En total, entre US$20 y 30 al mes, que salen del crédito de Azure for Students. Para no gastar después del reto:
@@ -73,8 +73,10 @@ az group delete -n ecoconecta-rg      # borra TODO lo desplegado, incluida la ba
 
 | Síntoma | Qué hacer |
 |---|---|
-| `RequestDisallowedByPolicy` o la región no está permitida | Cambia `AZ_REGION` en `.env.azure` (prueba `eastus`, `westus2`, `brazilsouth`) y vuelve a ejecutar |
-| `TasksOperationsNotAllowed` al construir | El script cae solo a Docker local. Instala Docker y vuelve a ejecutar |
-| No pude crear Azure OpenAI | Cambia `AZ_REGION_IA` (prueba `eastus2` o `swedencentral`). Sin IA, el bot usa las reglas por palabras |
+| `RequestDisallowedByPolicy` o la región no está permitida | Azure for Students solo deja canadacentral, northcentralus, brazilsouth, chilecentral y francecentral. Cambia `AZ_REGION` en `.env.azure`, borra el grupo vacío si quedó creado (`az group delete -n ecoconecta-rg`) y vuelve a ejecutar |
+| `TasksOperationsNotAllowed` al construir | El script cae solo a Docker local. Instala Docker y vuelve a ejecutar. Si `docker login` falla por un credential helper (`pass`), el script usa una configuración temporal de Docker |
+| `SpecialFeatureOrQuotaIdRequired` con `gpt-4o-mini` | Esa suscripción no tiene cuota para ese modelo. Deja `AZ_REGION_IA=brazilsouth` y `AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini` (el script prueba también `gpt-4o-mini`). Sin IA, el bot usa las reglas por palabras |
+| `RequestDisallowedByAzure` al crear Azure OpenAI | La política de Azure for Students no permite todas las regiones. Usa `AZ_REGION_IA=brazilsouth` (u otra permitida que tenga cuota: `canadacentral`, `northcentralus`, `francecentral`); la región de la web puede seguir siendo `canadacentral` |
+| No pude crear Azure OpenAI | Solo se permite un recurso S0 por región. Cambia `AZ_REGION_IA` y vuelve a ejecutar |
 | La web carga pero el login falla | `az containerapp logs show -g ecoconecta-rg -n ecoconecta-api --tail 50` |
 | Meta no verifica el webhook | Revisa que el token coincida y que la API responda en `https://<API>/health` |

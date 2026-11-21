@@ -5,6 +5,7 @@
 #   - Azure Container Apps: backend (FastAPI, con el webhook de WhatsApp) y frontend (Next.js)
 #
 # Requisitos: Azure CLI (`az`) con sesión iniciada (`az login`) y el archivo .env.azure en la raíz.
+# Azure for Students: gpt-4o-mini suele no tener cuota; se usa gpt-4.1-mini en brazilsouth como alternativa.
 # Uso, desde la raíz del repo:   bash infra/azure/desplegar.sh
 # Se puede volver a ejecutar: actualiza las imágenes y la configuración sin borrar datos.
 # Los valores secretos nunca se imprimen.
@@ -39,6 +40,9 @@ aleatorio() { python3 -c "import secrets; print(secrets.token_hex($1))"; }
 
 set -a; . "$CONF"; set +a
 
+REGION_IA="${AZ_REGION_IA:-brazilsouth}"
+API_VERSION_IA="${AZURE_OPENAI_API_VERSION:-2025-04-01-preview}"
+
 # Valores generados una sola vez
 if [ -z "${AZ_SUFIJO:-}" ]; then AZ_SUFIJO="$(az account show --query id -o tsv | sha1sum | cut -c1-6)"; guardar AZ_SUFIJO "$AZ_SUFIJO"; fi
 if [ -z "${PG_CLAVE:-}" ]; then PG_CLAVE="Eco$(aleatorio 12)9"; guardar PG_CLAVE "$PG_CLAVE"; fi
@@ -47,7 +51,7 @@ if [ -z "${SERVICE_API_KEY:-}" ]; then SERVICE_API_KEY="$(aleatorio 24)"; guarda
 if [ "${SEMBRAR_DEMO:-0}" = "1" ] && [ -z "${DEMO_CLAVE:-}" ]; then DEMO_CLAVE="$(aleatorio 6)"; guardar DEMO_CLAVE "$DEMO_CLAVE"; fi
 
 GRUPO="${AZ_GRUPO:-ecoconecta-rg}"
-REGION="${AZ_REGION:-eastus2}"
+REGION="${AZ_REGION:-canadacentral}"
 ACR="ecoconecta${AZ_SUFIJO}"
 PG="ecoconecta-pg-${AZ_SUFIJO}"
 ENTORNO="ecoconecta-env"
@@ -82,20 +86,53 @@ az postgres flexible-server db show -g "$GRUPO" -s "$PG" -d ecoconecta -o none 2
 PG_HOST="$(az postgres flexible-server show -g "$GRUPO" -n "$PG" --query fullyQualifiedDomainName -o tsv)"
 DATABASE_URL="postgresql+psycopg://${PG_ADMIN}:${PG_CLAVE}@${PG_HOST}:5432/ecoconecta?sslmode=require"
 
-AOAI="ecoconecta-ia-${AZ_SUFIJO}"
+AOAI="${AZURE_OPENAI_RECURSO:-ecoconecta-ia-${AZ_SUFIJO}}"
 if [ "${IA_PROVEEDOR:-}" = "azure_openai" ] && [ "${CREAR_AZURE_OPENAI:-0}" = "1" ] && [ -z "${AZURE_OPENAI_API_KEY:-}" ]; then
-  paso "Azure OpenAI ($AOAI, modelo ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini})"
-  if ! az cognitiveservices account show -g "$GRUPO" -n "$AOAI" -o none 2>/dev/null; then
-    az cognitiveservices account create -g "$GRUPO" -n "$AOAI" -l "${AZ_REGION_IA:-eastus}" \
-      --kind OpenAI --sku S0 --custom-domain "$AOAI" --yes --only-show-errors -o none \
-      || echo "No pude crear Azure OpenAI en ${AZ_REGION_IA:-eastus}. Sigo sin IA (las reglas por palabras funcionan)."
-  fi
+  paso "Azure OpenAI ($AOAI, región $REGION_IA)"
+
+  # Si el recurso ya existe en otra región, creamos uno nuevo con la región en el nombre.
+  AOAI_EN_AZ="0"
   if az cognitiveservices account show -g "$GRUPO" -n "$AOAI" -o none 2>/dev/null; then
-    az cognitiveservices account deployment show -g "$GRUPO" -n "$AOAI" --deployment-name "${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}" -o none 2>/dev/null \
-      || az cognitiveservices account deployment create -g "$GRUPO" -n "$AOAI" \
-           --deployment-name "${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}" --model-name gpt-4o-mini --model-version 2024-07-18 \
-           --model-format OpenAI --sku-name GlobalStandard --sku-capacity 10 --only-show-errors -o none \
-      || echo "No pude desplegar el modelo. Revisa la cuota en Azure AI Foundry; sigo sin IA."
+    AOAI_EN_AZ="1"
+    REGION_ACTUAL="$(az cognitiveservices account show -g "$GRUPO" -n "$AOAI" --query location -o tsv | tr -d '[:space:]')"
+    if [ "$REGION_ACTUAL" != "$REGION_IA" ]; then
+      AOAI="${AOAI}-${REGION_IA}"
+      AOAI_EN_AZ="0"
+    fi
+  fi
+
+  if [ "$AOAI_EN_AZ" = "0" ]; then
+    az cognitiveservices account create -g "$GRUPO" -n "$AOAI" -l "$REGION_IA" \
+      --kind OpenAI --sku S0 --custom-domain "$AOAI" --yes --only-show-errors -o none \
+      || echo "No pude crear Azure OpenAI en $REGION_IA. Sigo sin IA (las reglas por palabras funcionan)."
+  fi
+
+  if az cognitiveservices account show -g "$GRUPO" -n "$AOAI" -o none 2>/dev/null; then
+    DEPLOY_IA="${AZURE_OPENAI_DEPLOYMENT:-gpt-4.1-mini}"
+    if ! az cognitiveservices account deployment show -g "$GRUPO" -n "$AOAI" --deployment-name "$DEPLOY_IA" -o none 2>/dev/null; then
+      if [ -n "${AZURE_OPENAI_MODELO:-}" ]; then
+        CANDIDATOS_IA=("${AZURE_OPENAI_MODELO}|${AZURE_OPENAI_MODELO_VERSION:-}")
+      else
+        # gpt-4o-mini no tiene cuota en Azure for Students; gpt-4.1-mini sí suele tenerla en brazilsouth.
+        CANDIDATOS_IA=("gpt-4.1-mini|2025-04-14" "gpt-4o-mini|2024-07-18")
+      fi
+      MODELO_IA=""
+      for CANDIDATO_IA in "${CANDIDATOS_IA[@]}"; do
+        MODELO_IA="${CANDIDATO_IA%%|*}"
+        VERSION_IA="${CANDIDATO_IA#*|}"
+        if az cognitiveservices account deployment create -g "$GRUPO" -n "$AOAI" \
+             --deployment-name "$DEPLOY_IA" --model-name "$MODELO_IA" --model-version "$VERSION_IA" \
+             --model-format OpenAI --sku-name GlobalStandard --sku-capacity 10 --only-show-errors -o none; then
+          guardar AZURE_OPENAI_MODELO "$MODELO_IA"
+          guardar AZURE_OPENAI_MODELO_VERSION "$VERSION_IA"
+          guardar AZURE_OPENAI_DEPLOYMENT "$DEPLOY_IA"
+          break
+        fi
+      done
+      if ! az cognitiveservices account deployment show -g "$GRUPO" -n "$AOAI" --deployment-name "$DEPLOY_IA" -o none 2>/dev/null; then
+        echo "No pude desplegar el modelo. Revisa la cuota en Azure AI Foundry; sigo sin IA."
+      fi
+    fi
     AZURE_OPENAI_ENDPOINT="$(az cognitiveservices account show -g "$GRUPO" -n "$AOAI" --query properties.endpoint -o tsv)"
     AZURE_OPENAI_API_KEY="$(az cognitiveservices account keys list -g "$GRUPO" -n "$AOAI" --query key1 -o tsv)"
   fi
@@ -115,7 +152,28 @@ construir() {  # imagen carpeta [build-arg]
   fi
   echo "ACR Tasks no está disponible; construyo con Docker local."
   command -v docker >/dev/null || falla "Necesito Docker instalado para construir la imagen localmente."
-  az acr login -n "$ACR" --only-show-errors >/dev/null
+
+  # Un credential helper (p. ej. pass) sin inicializar puede romper 'docker login'.
+  # Usamos una configuración temporal solo durante el despliegue.
+  if [ -z "${DOCKER_CONFIG_TEMP:-}" ]; then
+    DOCKER_CONFIG_TEMP="$(mktemp -d)"
+    ORIGEN_DOCKER="${DOCKER_CONFIG:-$HOME/.docker}"
+    [ ! -f "$ORIGEN_DOCKER/config.json" ] || cp "$ORIGEN_DOCKER/config.json" "$DOCKER_CONFIG_TEMP/config.json"
+    [ ! -d "$ORIGEN_DOCKER/contexts" ] || cp -R "$ORIGEN_DOCKER/contexts" "$DOCKER_CONFIG_TEMP/"
+    python3 - "$DOCKER_CONFIG_TEMP/config.json" <<'PY'
+import json, os, sys
+ruta = sys.argv[1]
+datos = json.load(open(ruta)) if os.path.exists(ruta) else {}
+datos.pop("credsStore", None)
+datos.pop("credHelpers", None)
+json.dump(datos, open(ruta, "w"))
+PY
+    trap '[ -z "${DOCKER_CONFIG_TEMP:-}" ] || rm -rf "$DOCKER_CONFIG_TEMP"' EXIT
+  fi
+  export DOCKER_CONFIG="$DOCKER_CONFIG_TEMP"
+  printf '%s' "$ACR_CLAVE" | docker login "$ACR_SERVIDOR" -u "$ACR_USUARIO" --password-stdin >/dev/null \
+    || falla "No pude iniciar sesión en $ACR_SERVIDOR con Docker."
+
   docker build -t "$ACR_SERVIDOR/$imagen" ${arg:+--build-arg "$arg"} "$carpeta"
   docker push "$ACR_SERVIDOR/$imagen"
 }
@@ -137,7 +195,7 @@ agregar_secreto demo-clave DEMO_CLAVE "${DEMO_CLAVE:-}"
 agregar_secreto anthropic-api-key ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
 agregar_secreto azure-openai-key AZURE_OPENAI_API_KEY "${AZURE_OPENAI_API_KEY:-}"
 [ -z "${IA_PROVEEDOR:-}" ] || ENV_BACK+=("IA_PROVEEDOR=$IA_PROVEEDOR")
-[ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || ENV_BACK+=("AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" "AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}")
+[ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || ENV_BACK+=("AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" "AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4.1-mini}" "AZURE_OPENAI_API_VERSION=$API_VERSION_IA")
 agregar_secreto whatsapp-token WHATSAPP_TOKEN "${WHATSAPP_TOKEN:-}"
 agregar_secreto whatsapp-verify-token WHATSAPP_VERIFY_TOKEN "${WHATSAPP_VERIFY_TOKEN:-}"
 agregar_secreto whatsapp-app-secret WHATSAPP_APP_SECRET "${WHATSAPP_APP_SECRET:-}"

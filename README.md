@@ -5,8 +5,8 @@ Plataforma para conectar a hogares y unidades productivas de Villas de San Pablo
 - **Frontend:** React con Next.js (`frontend/`), pensado para móvil y tableta. Sigue el Manual de Identidad Visual del reto: colores como tokens `--eco-*` en `app/globals.css`, Poppins para títulos e Inter para texto, y el logo original en `public/logo-ecoconecta.png`.
 - **Backend:** Python, FastAPI, SQLAlchemy y Psycopg, con PostgreSQL (`backend/`).
 - **Canal:** WhatsApp Business Cloud API de Meta (`backend/app/whatsapp/`).
-- **IA:** Azure OpenAI (modelo `gpt-4o-mini` en Azure AI Foundry, con el SDK oficial de OpenAI) en la nube, o Claude API con el SDK oficial de Anthropic; se elige con `IA_PROVEEDOR`. Hace una clasificación orientativa del residuo y no toma decisiones (`backend/app/ia/`).
-- **URL publicada:** _pendiente del despliegue en la nube_.
+- **IA:** Azure OpenAI (modelo `gpt-4.1-mini` en Azure AI Foundry, con el SDK oficial de OpenAI; `gpt-4o-mini` se usa solo si hay cuota) en la nube, o Claude API con el SDK oficial de Anthropic; se elige con `IA_PROVEEDOR`. Hace una clasificación orientativa del residuo y no toma decisiones (`backend/app/ia/`).
+- **URL publicada:** https://ecoconecta-web.orangecoast-ad01231d.canadacentral.azurecontainerapps.io
 
 ## Tecnologías y cumplimiento (sección 8 del reto)
 
@@ -211,7 +211,7 @@ Todas están documentadas, sin valores, en [`.env.example`](.env.example):
 - **Almacenamiento:** ninguno. Las fotos no se guardan.
 - **Redes:** HTTPS público administrado por Container Apps para la web y para `/webhook`. El frontend llama al backend por su URL HTTPS.
 - **Secretos:** secretos de Container Apps, leídos de `.env.azure`, que no se sube a Git.
-- **URL publicada:** _se completa al desplegar._
+- **Demo publicada:** https://ecoconecta-web.orangecoast-ad01231d.canadacentral.azurecontainerapps.io
 
 ## Implementado, simulado y pendiente
 
