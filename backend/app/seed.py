@@ -75,7 +75,7 @@ USUARIOS = [
     ("Coord. Reciclaje (demo)", "+573000000004", "coordinador_reciclaje", None, None),
     ("Admin EcoConecta (demo)", "+573000000007", "administrador", None, None),
 ]
-ZONAS = ["Sector 1", "Sector 2", "Sector 3", "Sector 4"]  # ficticias
+ZONAS = [f"Sector {i}" for i in range(1, 8)]  # ficticias; el mapa de la coordinación dibuja siete sectores
 ZONA_DEMO = {"Tienda La Esquina (demo)": "Sector 1", "Hogar Pérez (demo)": "Sector 2"}
 
 # Personal de campo sin cuenta: (tipo, nombre, apellido, zona, días, desde, hasta)
@@ -83,6 +83,11 @@ PERSONAL = [
     ("reciclador", "Rosa", "Martínez", "Sector 1", "lun,mar,mie,jue,vie", time(7, 0), time(12, 0)),
     ("reciclador", "Luis", "Herrera", "Sector 2", "lun,mie,vie,sab", time(8, 0), time(17, 0)),
     ("reciclador", "Marta", "Rincón", "Sector 2", "mar,jue,sab", time(13, 0), time(18, 0)),
+    ("reciclador", "Andrés", "Pérez", "Sector 3", "lun,mar,mie,jue,vie", time(8, 0), time(16, 0)),
+    ("reciclador", "Yaneth", "Cuesta", "Sector 4", "mar,jue,sab", time(6, 0), time(12, 0)),
+    ("reciclador", "Jorge", "Mendoza", "Sector 5", "lun,mie,vie", time(13, 0), time(18, 0)),
+    ("reciclador", "Dayana", "Ortiz", "Sector 6", "lun,mar,mie,jue,vie,sab", time(7, 0), time(15, 0)),
+    ("reciclador", "Wilson", "Barrios", "Sector 7", "mie,jue,vie,sab,dom", time(9, 0), time(17, 0)),
     ("voluntario_huerta", "Carlos", "Ruiz", None, "sab,dom", time(7, 0), time(11, 0)),
 ]
 

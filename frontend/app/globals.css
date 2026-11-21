@@ -378,3 +378,74 @@ h1, h2, h3, p, td, dd, summary { overflow-wrap: anywhere; }
 .cajon .submenu a { padding: 10px 12px; font-weight: 500; min-height: 44px; }
 .cajon .submenu p { margin: 4px 12px 8px; }
 p.submenu { padding: 8px 12px; }
+
+/* ---------- Mapa de zonas (coordinación) ---------- */
+.mapa-zonas { display: grid; gap: 16px; }
+@media (min-width: 900px) {
+  .mapa-zonas { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: start; }
+  .mapa-columna { position: sticky; top: 118px; }
+}
+.mapa-columna { display: grid; gap: 10px; }
+.mapa-tarjeta { padding: 10px; margin-bottom: 0; }
+.mapa-svg { width: 100%; height: auto; display: block; max-height: 78vh; }
+.mapa-zona { cursor: pointer; outline: none; }
+.mapa-zona polygon { stroke: var(--superficie); stroke-width: 3; stroke-linejoin: round; transition: filter .15s; }
+.mapa-zona:hover polygon { filter: brightness(1.07); }
+.mapa-zona:focus-visible polygon { stroke: var(--eco-yellow); stroke-width: 5; }
+.mapa-zona.activa polygon { stroke: var(--eco-forest); stroke-width: 5; }
+.mapa-nombre { font: 600 14.5px var(--font-body); pointer-events: none; }
+.mapa-cifra { font: 700 30px var(--font-heading); pointer-events: none; }
+.mapa-vacia { fill: var(--borde); opacity: .55; stroke: var(--superficie); stroke-width: 3; stroke-dasharray: 6 5; }
+.mapa-norte circle { fill: none; stroke: var(--suave); stroke-width: 1.5; }
+.mapa-norte path { fill: var(--suave); }
+.mapa-norte text { fill: var(--suave); font: 600 11px var(--font-body); }
+.mapa-leyenda { display: flex; align-items: center; gap: 8px; margin: 6px 4px 0; }
+.mapa-barra { flex: 1; height: 12px; border-radius: 999px; background: linear-gradient(90deg, rgb(46, 158, 79), rgb(246, 196, 0), rgb(217, 54, 43)); }
+.mapa-nota { font-size: .85rem; margin: 6px 4px 0; }
+.mapa-lista { display: flex; flex-direction: column; gap: 6px; }
+.zona-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--superficie); color: var(--texto); border: 2px solid var(--borde); box-shadow: none; font-weight: 600; padding: 10px 12px; border-radius: 12px; }
+.zona-item .nombre { flex: 1; }
+.zona-item .cifra { font-weight: 500; color: var(--suave); font-size: .9rem; }
+.zona-item .punto { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; border: 1px solid rgba(0, 0, 0, .25); }
+.zona-item.activa { border-color: var(--eco-forest); }
+.zona-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.recicladores-zona { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); margin-bottom: 8px; }
+.reciclador-boton { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 12px; }
+.reciclador-boton span { font-weight: 500; font-size: .85rem; color: var(--suave); }
+.metricas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+.metrica { background: var(--superficie); border: 1px solid var(--borde); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.metrica b { font: 700 1.35rem var(--font-heading); color: var(--titulo); }
+.metrica span { color: var(--suave); font-size: .82rem; }
+.kilos { display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 8px; margin: 6px 0; }
+.kilos-barra { background: var(--borde); border-radius: 999px; height: 12px; overflow: hidden; }
+.kilos-barra span { display: block; height: 100%; border-radius: 999px; }
+.kilos-barra .organico { background: var(--organico); }
+.kilos-barra .reciclable { background: var(--reciclable); }
+
+/* ---------- Ficha del reciclador ---------- */
+.datos { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 10px 0 0; }
+.datos dt { color: var(--suave); font-weight: 600; }
+.datos dd { margin: 0; }
+.agenda { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-bottom: 8px; }
+.agenda-dia { background: var(--superficie); border: 1px solid var(--borde); border-radius: 14px; padding: 8px 10px; }
+.agenda-dia.hoy { border: 2px solid var(--eco-green); padding: 7px 9px; }
+.agenda-dia.descanso { background: transparent; border-style: dashed; opacity: .75; }
+.agenda-cabeza { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.agenda-horario, .agenda-libre { margin: 2px 0; font-size: .82rem; }
+.agenda-dia ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.cita { display: flex; flex-direction: column; padding: 6px 8px; border-radius: 10px; font-size: .82rem; background: var(--tinte); border-left: 4px solid var(--organico); }
+.cita.reciclable { border-left-color: var(--reciclable); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mapa-zona.activa polygon { stroke: #fff; } :root:not([data-theme="light"]) .zona-item.activa { border-color: #fff; } }
+:root[data-theme="dark"] .mapa-zona.activa polygon { stroke: #fff; }
+:root[data-theme="dark"] .zona-item.activa { border-color: #fff; }
+.fila.semana-nav { flex-wrap: nowrap; }
+.fila.semana-nav > button { flex: 1 1 0; min-width: 0; padding: 10px 6px; font-size: .92rem; white-space: nowrap; }
+.mapa-detalle { scroll-margin-top: 110px; }
+
+/* Coordinación: pestañas esenciales sin desplazamiento horizontal; lo demás está en el menú hamburguesa */
+.cajon .cajon-seccion { margin: 10px 12px 2px; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--suave); }
+.vista-menu { margin-bottom: 8px; }
+@media (max-width: 600px) {
+  .pestanas.compactas { flex-wrap: wrap; overflow: visible; margin: 0 0 12px; padding: 0; scroll-snap-type: none; }
+  .pestanas.compactas button { flex: 1 1 calc(50% - 4px); white-space: normal; min-width: 0; }
+}
