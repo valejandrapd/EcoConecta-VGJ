@@ -22,18 +22,12 @@ export default function Panel() {
   }, []);
 
   if (!yo) return <p className="suave">Cargando…</p>;
-  const salir = () => {
-    cerrarSesion();
-    window.location.href = "/";
-  };
   return (
     <>
-      <div className="fila" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h1 style={{ marginBottom: 0 }}>Hola, {yo.nombre}</h1>
-          <p className="suave">{NOMBRE_ROL[yo.rol]}</p>
-        </div>
-        <div style={{ flex: "0 0 auto" }}><button className="secundario" onClick={salir}>Salir</button></div>
+      {/* "Salir" vive en el menú hamburguesa para dejarle todo el ancho al saludo en el celular */}
+      <div className="saludo">
+        <h1>Hola, {yo.nombre}</h1>
+        <p className="suave">{NOMBRE_ROL[yo.rol]}</p>
       </div>
       {yo.rol === "solicitante" && <Solicitante yo={yo} />}
       {yo.rol.startsWith("coordinador_") && <Coordinador yo={yo} />}

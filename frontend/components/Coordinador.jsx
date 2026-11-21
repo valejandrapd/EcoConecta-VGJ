@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api, NOMBRE_ESTADO, NOMBRE_FLUJO } from "../lib/api";
+import { api, centrarPestana, NOMBRE_ESTADO, NOMBRE_FLUJO } from "../lib/api";
 import Solicitud from "./Solicitud";
 import { Asignar, Boton, RegistrarRecoleccion } from "./Acciones";
 import { IntegrarPersonal, ListaPersonal } from "./Personal";
@@ -44,7 +44,7 @@ export default function Coordinador({ yo }) {
         </button>
       )}
       <h2>Bandeja {yo.flujo ? `· ${NOMBRE_FLUJO[yo.flujo]}` : "· todos los flujos"}</h2>
-      <div className="pestanas">
+      <div className="pestanas" onClick={centrarPestana}>
         {Object.keys(VISTAS).map((v) => (
           <button key={v} className={vista === v ? "activa" : ""} onClick={() => setVista(v)}>
             {v[0].toUpperCase() + v.slice(1)} ({cuenta(VISTAS[v])})

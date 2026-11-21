@@ -257,3 +257,78 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--borde); 
 @media (prefers-reduced-motion: reduce) { .cajon, .velo { animation: none; } }
 .solo-ancho { display: none; }
 @media (min-width: 640px) { .solo-ancho { display: inline; } }
+
+/* ---------- Celular primero (95 % del uso): toques cómodos y nada que se salga ---------- */
+html { -webkit-text-size-adjust: 100%; }
+body { overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+button, .boton, .opcion, summary, a { touch-action: manipulation; }
+input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; padding: 0; accent-color: var(--eco-green); vertical-align: middle; }
+img, svg { max-width: 100%; }
+h1, h2, h3, p, td, dd, summary { overflow-wrap: anywhere; }
+
+/* Enlace "Mi panel" de la barra: ícono siempre, texto solo si cabe */
+.barra .enlace.der { display: inline-flex; flex-direction: column; align-items: center; gap: 0; line-height: 1.1; min-width: 44px; min-height: 44px; justify-content: center; }
+.barra .enlace.der svg { width: 26px; height: 26px; }
+.barra .enlace.der span { font-size: .7rem; white-space: nowrap; }
+.hamburguesa { min-width: 44px; min-height: 44px; justify-content: center; }
+
+/* Saludo del panel */
+.saludo h1 { margin-bottom: 0; }
+.saludo p { margin-top: 2px; }
+
+/* Botones de apoyo con altura táctil mínima de 44 px */
+.chip, .asistente-cabeza button, .cajon-cabeza button, .pestanas button { min-height: 44px; }
+.asistente-cabeza button { min-width: 44px; }
+
+@media (max-width: 600px) {
+  .contenedor { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 1.5rem; margin: 4px 0 12px; }
+  h2 { font-size: 1.15rem; margin: 20px 0 10px; }
+  .tarjeta { padding: 14px; }
+
+  /* Pestañas en una sola fila que se desliza con el dedo */
+  .pestanas { flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity; margin: 0 -16px 12px; padding: 2px 16px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .pestanas::-webkit-scrollbar { display: none; }
+  .pestanas button { flex: 0 0 auto; white-space: nowrap; scroll-snap-align: start; }
+
+  /* Formularios en una columna: cada campo usa todo el ancho */
+  .fila > input, .fila > select, .fila > textarea, .fila > div:has(> input), .fila > div:has(> select) { flex-basis: 100%; }
+  form > button, form > p > button, .tarjeta > form button:not(.secundario):not(.chip):not(.opcion) { width: 100%; }
+  .fila > button, .fila > .boton { flex: 1 1 120px; }
+
+  /* Tablas como tarjetas: cada fila es una tarjeta y cada dato lleva su nombre */
+  .tabla.sin-marco-movil { background: none; border: 0; padding: 0; overflow: visible; }
+  .tabla-tarjetas, .tabla-tarjetas tbody, .tabla-tarjetas tr, .tabla-tarjetas td { display: block; width: 100%; }
+  .tabla-tarjetas thead { display: none; }
+  .tabla-tarjetas tr { background: var(--superficie); border: 1px solid var(--borde); border-radius: 14px; padding: 6px 14px; margin-bottom: 10px; }
+  .tabla-tarjetas td { border: 0; padding: 6px 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right; }
+  .tabla-tarjetas td[data-label]::before { content: attr(data-label); font-weight: 600; color: var(--suave); font-size: .85rem; text-align: left; flex: 0 0 auto; }
+  .tabla-tarjetas td.cabeza-fila { font-family: var(--font-heading); font-weight: 600; color: var(--titulo); font-size: 1.05rem; text-align: left; border-bottom: 1px solid var(--borde); padding-bottom: 8px; margin-bottom: 2px; }
+  .tabla-tarjetas td.acciones-fila { justify-content: flex-end; }
+  .tabla-tarjetas td select { width: auto; flex: 0 1 auto; max-width: 72%; padding: 8px 10px; }
+
+  /* Asistente: más alto el botón de continuar y respeta la barra de gestos */
+  .acciones-paso { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .acciones-paso button, .acciones-paso .boton { padding: 14px 18px; font-size: 1.05rem; }
+  .semana { gap: 4px; }
+  .semana .opcion.dia { min-height: 56px; padding: 8px 0; }
+
+  /* Tutorial: dibujos más pequeños para dar ancho al texto */
+  .pasos-tutorial li { grid-template-columns: 64px 1fr; gap: 12px; align-items: start; }
+  .pasos-tutorial .ilustracion { width: 64px; height: 56px; }
+
+  /* Insignias del panel */
+  .insignia svg { flex-basis: 84px; width: 84px; height: 84px; }
+}
+@media (max-width: 400px) {
+  .barra .enlace.der span { display: none; }
+  .barra { padding: 4px 8px; }
+  .marca img { width: 220px; }
+}
+.envoltura-boton { flex: 0 0 auto; }
+.envoltura-boton .error { display: block; margin-top: 6px; }
+@media (max-width: 600px) {
+  .fila > .envoltura-boton { flex: 1 1 100%; }
+  .envoltura-boton button { width: 100%; }
+  .tabla-tarjetas .envoltura-boton button, .tabla-tarjetas td.acciones-fila button { width: auto; }
+}

@@ -85,3 +85,8 @@ export function hora12(h) {
 export function nombresDias(dias) {
   return DIAS.filter(([c]) => (dias || []).includes(c)).map(([, corto]) => corto).join(", ");
 }
+
+// En el celular las pestañas se deslizan: al tocar una, se centra para ver las vecinas.
+export function centrarPestana(e) {
+  e.target.closest?.("button")?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+}

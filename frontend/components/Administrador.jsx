@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api, NOMBRE_ROL } from "../lib/api";
+import { api, centrarPestana, NOMBRE_ROL } from "../lib/api";
 import Coordinador from "./Coordinador";
 import { Boton } from "./Acciones";
 
@@ -8,7 +8,7 @@ export default function Administrador({ yo }) {
   const [vista, setVista] = useState("usuarios");
   return (
     <>
-      <div className="pestanas">
+      <div className="pestanas" onClick={centrarPestana}>
         {[["usuarios", "Usuarios y piloto"], ["zonas", "Zonas"], ["contenidos", "Contenidos"], ["solicitudes", "Solicitudes"], ["parametros", "Parámetros"]].map(([v, t]) => (
           <button key={v} className={vista === v ? "activa" : ""} onClick={() => setVista(v)}>{t}</button>
         ))}
@@ -36,22 +36,22 @@ function Zonas() {
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la zona, p. ej. Sector 5" aria-label="Nueva zona" style={{ flex: "3 1 200px" }} />
         <Boton disabled={nombre.trim().length < 2} accion={() => api("/zonas", { metodo: "POST", cuerpo: { nombre } })} alTerminar={() => { setNombre(""); cargar(); }}>Agregar zona</Boton>
       </div>
-      <div className="tabla tarjeta">
-        <table>
+      <div className="tabla tarjeta sin-marco-movil">
+        <table className="tabla-tarjetas">
           <thead><tr><th>Zona</th><th>Activa</th><th></th></tr></thead>
           <tbody>
             {(lista || []).map((z) => (
               <tr key={z.id} style={{ opacity: z.activa ? 1 : 0.55 }}>
-                <td>
+                <td className="cabeza-fila">
                   {editando[z.id] !== undefined ? (
                     <input value={editando[z.id]} onChange={(e) => setEditando({ ...editando, [z.id]: e.target.value })} aria-label={`Nuevo nombre de ${z.nombre}`} />
                   ) : z.nombre}
                 </td>
-                <td>
-                  <input type="checkbox" style={{ width: "auto" }} checked={z.activa} aria-label={`Activa: ${z.nombre}`}
+                <td data-label="Activa">
+                  <input type="checkbox" checked={z.activa} aria-label={`Activa: ${z.nombre}`}
                     onChange={() => api(`/zonas/${z.id}`, { metodo: "PATCH", cuerpo: { activa: !z.activa } }).then(cargar)} />
                 </td>
-                <td>
+                <td className="acciones-fila">
                   {editando[z.id] !== undefined ? (
                     <Boton accion={() => api(`/zonas/${z.id}`, { metodo: "PATCH", cuerpo: { nombre: editando[z.id] } })}
                       alTerminar={() => { const { [z.id]: _, ...resto } = editando; setEditando(resto); cargar(); }}>Guardar</Boton>
@@ -79,21 +79,21 @@ function Usuarios() {
     <>
       <h2>Usuarios</h2>
       <p className="suave">RN-08: solo los usuarios marcados como piloto pueden solicitar recolecciones.</p>
-      <div className="tabla tarjeta">
-        <table>
+      <div className="tabla tarjeta sin-marco-movil">
+        <table className="tabla-tarjetas">
           <thead><tr><th>Nombre</th><th>Teléfono</th><th>Perfil</th><th>Piloto</th><th>Activo</th></tr></thead>
           <tbody>
             {(lista || []).map((u) => (
               <tr key={u.id}>
-                <td>{u.nombre}</td>
-                <td>{u.telefono}</td>
-                <td>
+                <td className="cabeza-fila">{u.nombre}</td>
+                <td data-label="Teléfono">{u.telefono}</td>
+                <td data-label="Perfil">
                   <select value={u.rol} onChange={(e) => cambiar(u, { rol: e.target.value })} aria-label="Perfil">
                     {Object.entries(NOMBRE_ROL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </td>
-                <td><input type="checkbox" style={{ width: "auto" }} checked={u.piloto} onChange={(e) => cambiar(u, { piloto: e.target.checked })} aria-label="Piloto" /></td>
-                <td><input type="checkbox" style={{ width: "auto" }} checked={u.activo} onChange={(e) => cambiar(u, { activo: e.target.checked })} aria-label="Activo" /></td>
+                <td data-label="Piloto"><input type="checkbox" checked={u.piloto} onChange={(e) => cambiar(u, { piloto: e.target.checked })} aria-label="Piloto" /></td>
+                <td data-label="Activo"><input type="checkbox" checked={u.activo} onChange={(e) => cambiar(u, { activo: e.target.checked })} aria-label="Activo" /></td>
               </tr>
             ))}
           </tbody>
@@ -103,7 +103,7 @@ function Usuarios() {
       <div className="tarjeta">
         <div className="fila">
           <input placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} />
-          <input placeholder="Teléfono" value={nuevo.telefono} onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })} />
+          <input placeholder="Teléfono" inputMode="tel" value={nuevo.telefono} onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })} />
           <select value={nuevo.rol} onChange={(e) => setNuevo({ ...nuevo, rol: e.target.value })}>
             {Object.entries(NOMBRE_ROL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>

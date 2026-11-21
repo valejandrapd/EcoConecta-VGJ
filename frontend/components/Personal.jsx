@@ -116,19 +116,19 @@ export function ListaPersonal({ version }) {
   if (!lista) return <p className="suave">Cargando…</p>;
   if (lista.length === 0) return <p className="suave">Aún no hay recicladores ni voluntarios integrados.</p>;
   return (
-    <div className="tabla tarjeta">
-      <table>
+    <div className="tabla tarjeta sin-marco-movil">
+      <table className="tabla-tarjetas">
         <thead><tr><th>Nombre</th><th>Tipo</th><th>Zona</th><th>Días</th><th>Horario</th><th>Activo</th></tr></thead>
         <tbody>
           {lista.map((p) => (
             <tr key={p.id} style={{ opacity: p.activo ? 1 : 0.55 }}>
-              <td>{p.nombre} {p.apellido}</td>
-              <td>{p.tipo === "reciclador" ? "♻️" : "🌱"} {NOMBRE_PERSONAL[p.tipo]}</td>
-              <td>{p.zona || "—"}</td>
-              <td>{nombresDias(p.dias)}</td>
-              <td>{hora12(p.hora_desde)} a {hora12(p.hora_hasta)}</td>
-              <td>
-                <input type="checkbox" style={{ width: "auto" }} checked={p.activo} aria-label={`Activo: ${p.nombre}`}
+              <td className="cabeza-fila">{p.nombre} {p.apellido}</td>
+              <td data-label="Tipo">{p.tipo === "reciclador" ? "♻️" : "🌱"} {NOMBRE_PERSONAL[p.tipo]}</td>
+              <td data-label="Zona">{p.zona || "—"}</td>
+              <td data-label="Días">{nombresDias(p.dias)}</td>
+              <td data-label="Horario">{hora12(p.hora_desde)} a {hora12(p.hora_hasta)}</td>
+              <td data-label="Activo">
+                <input type="checkbox" checked={p.activo} aria-label={`Activo: ${p.nombre}`}
                   onChange={() => api(`/personal/${p.id}`, { metodo: "PATCH", cuerpo: { activo: !p.activo } }).then(cargar)} />
               </td>
             </tr>

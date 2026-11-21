@@ -92,7 +92,7 @@ export function RegistrarRecoleccion({ s, alTerminar }) {
   const [obs, setObs] = useState("");
   return (
     <div className="fila">
-      <input type="number" min="0.1" step="0.1" value={kg} onChange={(e) => setKg(e.target.value)} placeholder="Kg recibidos en la huerta o el acopio" aria-label="Kilogramos" />
+      <input type="number" inputMode="decimal" min="0.1" step="0.1" value={kg} onChange={(e) => setKg(e.target.value)} placeholder="Kg recibidos en la huerta o el acopio" aria-label="Kilogramos" />
       <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observaciones" aria-label="Observaciones" />
       <Boton disabled={!(Number(kg) > 0)} accion={() => api(`/solicitudes/${s.codigo}/recoleccion`, { metodo: "POST", cuerpo: { cantidad_kg: kg, observaciones: obs || null } })} alTerminar={alTerminar}>
         Registrar recolección
@@ -105,7 +105,7 @@ export function Boton({ accion, alTerminar, children, disabled, secundario }) {
   const [error, setError] = useState("");
   const [ocupado, setOcupado] = useState(false);
   return (
-    <span style={{ flex: "0 0 auto" }}>
+    <span className="envoltura-boton">
       <button className={secundario ? "secundario" : ""} disabled={disabled || ocupado} onClick={async () => {
         setError("");
         setOcupado(true);

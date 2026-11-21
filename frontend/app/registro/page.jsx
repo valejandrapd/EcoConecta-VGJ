@@ -31,7 +31,7 @@ export default function Registro() {
       <label htmlFor="nombre">Nombre o nombre del negocio</label>
       <input id="nombre" value={f.nombre} onChange={cambiar("nombre")} required />
       <label htmlFor="tel">Teléfono (el de tu WhatsApp)</label>
-      <input id="tel" inputMode="tel" value={f.telefono} onChange={cambiar("telefono")} required />
+      <input id="tel" inputMode="tel" autoComplete="tel" value={f.telefono} onChange={cambiar("telefono")} required />
       <label htmlFor="dir">Dirección</label>
       <input id="dir" value={f.direccion} onChange={cambiar("direccion")} placeholder="Manzana, casa o local" required />
       <label htmlFor="zona">Zona</label>
