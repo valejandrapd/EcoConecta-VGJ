@@ -213,6 +213,9 @@ def asignar(s, sol: Solicitud, actor: Usuario, reciclador_id: int) -> Solicitud:
         _cambiar_estado(s, sol, "asignada", actor, f"Reasignada a {rec.nombre_completo}")
     s.flush()
     s.refresh(sol)
+    if cambia:
+        from . import bandeja
+        bandeja.avisar_asignada(s, sol)
     return sol
 
 
@@ -237,6 +240,8 @@ def programar(s, sol: Solicitud, actor: Usuario, fecha: date, hora: time) -> Sol
     s.flush()
     s.refresh(sol)
     obtener_notificador().solicitud_programada(s, sol)
+    from . import bandeja
+    bandeja.avisar_programada(s, sol)
     return sol
 
 

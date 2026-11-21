@@ -205,6 +205,24 @@ class ConversacionWhatsapp(Base):
     borrador_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Notificacion(Base):
+    """Bandeja web del solicitante. `clave` única evita avisos repetidos."""
+    __tablename__ = "notificaciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(20))  # asignada | programada | recordatorio_manana | recordatorio_hoy | zona
+    titulo: Mapped[str] = mapped_column(String(120))
+    cuerpo: Mapped[str] = mapped_column(String(300))
+    solicitud_id: Mapped[int | None] = mapped_column(ForeignKey("solicitudes.id"))  # nunca en avisos de zona
+    accion: Mapped[str | None] = mapped_column(String(30))  # nueva_solicitud
+    fecha_evento: Mapped[date | None] = mapped_column(Date)
+    clave: Mapped[str] = mapped_column(String(120), unique=True)
+    leida_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, index=True)
+
+    solicitud: Mapped["Solicitud | None"] = relationship()
+
+
 class CasoCoordinacion(Base):
     """Bandeja del coordinador: casos derivados desde el bot."""
     __tablename__ = "casos_coordinacion"

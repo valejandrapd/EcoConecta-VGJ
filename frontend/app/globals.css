@@ -301,6 +301,24 @@ h1, h2, h3, p, td, dd, summary { overflow-wrap: anywhere; }
 .barra .enlace.der span { font-size: .7rem; white-space: nowrap; }
 .hamburguesa { min-width: 44px; min-height: 44px; justify-content: center; }
 
+/* Campana de notificaciones del usuario (junto a "Mi panel") */
+.acciones-barra { justify-self: end; display: flex; align-items: center; gap: 2px; }
+.campana { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: var(--eco-forest); border-radius: 10px; }
+.campana:hover { background: var(--tinte); }
+.campana svg { width: 26px; height: 26px; }
+.campana .burbuja { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--eco-yellow); color: var(--eco-charcoal); font-size: .7rem; font-weight: 600; line-height: 18px; text-align: center; }
+
+/* Bandeja de notificaciones */
+.avisos { display: grid; gap: 10px; }
+.aviso { cursor: pointer; }
+.aviso.nuevo { border-left: 5px solid var(--eco-green); }
+.aviso-cabeza { display: flex; align-items: center; gap: 8px; }
+.aviso-cabeza h2 { margin: 0; font-size: 1.05rem; flex: 1; }
+.aviso-icono { font-size: 1.3rem; }
+.aviso p { margin: 8px 0; }
+.aviso .boton { display: inline-block; margin-top: 4px; }
+.etiqueta-nuevo { font-size: .75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--eco-yellow); color: var(--eco-charcoal); }
+
 /* Saludo del panel */
 .saludo h1 { margin-bottom: 0; }
 .saludo p { margin-top: 2px; }

@@ -87,6 +87,7 @@ export default function Menu() {
             <nav>
               {enlace("/", "🏠", "Inicio y aprende")}
               {enlace("/panel", "📋", "Mi panel")}
+              {conSesion && rol === "solicitante" && enlace("/notificaciones", "🔔", "Notificaciones")}
               {conSesion && rol?.startsWith("coordinador_") && (
                 <>
                   <p className="cajon-seccion">Bandeja de la coordinación</p>

@@ -478,6 +478,38 @@ def sugerir(d: Consulta, uid: int = Depends(actor_id)):
     return {"categoria": sug.categoria, "confianza": sug.confianza, "origen": sug.origen, "flujos": sug.flujos}
 
 
+# --------------------------------------------------------------- bandeja del solicitante
+@router.get("/notificaciones")
+def notificaciones(uid: int = Depends(actor_id)):
+    from .. import bandeja
+    with sesion() as s:
+        return [bandeja.a_dict(n) for n in bandeja.visibles(s, _actor(s, uid))]
+
+
+@router.get("/notificaciones/contador")
+def contador_notificaciones(uid: int = Depends(actor_id)):
+    from .. import bandeja
+    with sesion() as s:
+        return {"no_leidas": sum(1 for n in bandeja.visibles(s, _actor(s, uid)) if n.leida_en is None)}
+
+
+@router.post("/notificaciones/leer-todas")
+def leer_todas(uid: int = Depends(actor_id)):
+    from .. import bandeja
+    with sesion() as s:
+        bandeja.marcar_todas(s, _actor(s, uid))
+        return {"ok": True}
+
+
+@router.post("/notificaciones/{notificacion_id}/leida")
+def leer_notificacion(notificacion_id: int, uid: int = Depends(actor_id)):
+    from .. import bandeja
+    with sesion() as s:
+        if not bandeja.marcar_leida(s, _actor(s, uid), notificacion_id):
+            raise HTTPException(404, "No existe esa notificación")
+        return {"ok": True}
+
+
 @router.post("/mantenimiento/purgar-mensajes")
 def purgar(uid: int = Depends(actor_id)):
     with sesion() as s:
