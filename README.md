@@ -116,11 +116,13 @@ Son 46 pruebas contra PostgreSQL real. Simulan Meta y Claude, así que no necesi
 | Coordinación de huerta o de reciclaje | La coordinación de reciclaje integra **recicladores** (botón **Integrar nuevo reciclador**) y la de huerta integra **voluntarios de huerta** (botón **Integrar nuevo voluntario de huerta**); cada una ve y activa o desactiva solo su personal. Bandeja de su flujo con pestañas (pendientes, asignadas, programadas, atendidas y canceladas): revisar, **asignar y programar en un paso** (solo recicladores de la zona, y solo los días y horas que cruzan con el usuario; avisa por WhatsApp), **cambiar la fecha** de una recolección programada (con las mismas restricciones; avisa de nuevo) y registrar la recolección (kg). La coordinación no cancela solicitudes. Incluye los casos derivados por WhatsApp y un resumen por flujo, estado y periodo |
 | Administración | Usuarios (perfil, piloto, activo, alta de personas), zonas (agregar, renombrar, desactivar), contenidos (crear, editar, borrar), todas las solicitudes y los parámetros de puntos |
 
+En todas las pantallas, el **menú hamburguesa** (arriba a la izquierda) lleva a Inicio, Mi panel, **Mi perfil** (`/perfil`: nombre, dirección, zona, tipo de generador y cambio de clave; el teléfono no se edita), **Tutorial** (`/tutorial`), **Ayuda** (`/ayuda`: preguntas frecuentes por tema con buscador) y **Salir**. También elige la apariencia: claro, oscuro o automático (sigue al sistema). El modo oscuro usa los verdes bosque del manual y se guarda en el navegador.
+
 El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formulario con el flujo ya elegido.
 
 ### API (`/api`)
 
-- **Autenticación de la web:** `POST /auth/registro` y `POST /auth/login` devuelven un token, que luego se envía como `Authorization: Bearer <token>`. Las claves se guardan con scrypt y los tokens se firman con HMAC (`AUTH_SECRET`), todo con la librería estándar de Python.
+- **Autenticación de la web:** `POST /auth/registro` y `POST /auth/login` devuelven un token, que luego se envía como `Authorization: Bearer <token>`. Las claves se guardan con scrypt y los tokens se firman con HMAC (`AUTH_SECRET`), todo con la librería estándar de Python. `GET /auth/yo` devuelve el perfil, `PATCH /auth/yo` lo edita y `POST /auth/clave` cambia la clave (pide la actual).
 - **Integraciones internas:** pueden usar `X-Service-Key` junto con `X-Usuario-Id`.
 - **Rutas públicas:** `GET /contenidos`, `GET /parametros` y `GET /zonas` (zonas activas).
 

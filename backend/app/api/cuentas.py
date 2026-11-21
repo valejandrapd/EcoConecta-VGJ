@@ -77,7 +77,46 @@ def login(d: Login):
 @router.get("/auth/yo")
 def yo(uid: int = Depends(actor_id)):
     with sesion() as s:
-        return _perfil(s, _actor(s, uid))
+        u = _actor(s, uid)
+        return {**_perfil(s, u), "telefono": u.telefono}
+
+
+class CambioPerfil(BaseModel):
+    nombre: str | None = Field(None, min_length=2, max_length=120)
+    direccion: str | None = Field(None, min_length=3, max_length=255)
+    zona: str | None = None
+    tipo_generador: str | None = None
+
+
+@router.patch("/auth/yo")
+def editar_perfil(d: CambioPerfil, uid: int = Depends(actor_id)):
+    """Mi perfil: cada persona edita sus propios datos (no su perfil ni su teléfono)."""
+    with sesion() as s:
+        u = _actor(s, uid)
+        if d.zona is not None and d.zona not in negocio_insignias.zonas_activas(s):
+            raise HTTPException(400, "Zona desconocida")
+        if d.tipo_generador is not None and d.tipo_generador not in TIPOS_GENERADOR:
+            raise HTTPException(400, "Tipo de generador inválido")
+        for campo in ("nombre", "direccion", "zona", "tipo_generador"):
+            valor = getattr(d, campo)
+            if valor is not None:
+                setattr(u, campo, valor.strip() if isinstance(valor, str) else valor)
+        s.flush()
+        return {**_perfil(s, u), "telefono": u.telefono}
+
+
+class CambioClave(BaseModel):
+    actual: str
+    nueva: str = Field(min_length=6, max_length=128)
+
+
+@router.post("/auth/clave", status_code=204)
+def cambiar_clave(d: CambioClave, uid: int = Depends(actor_id)):
+    with sesion() as s:
+        u = _actor(s, uid)
+        if not auth.verificar_clave(d.actual, u.clave_hash):
+            raise HTTPException(400, "La clave actual no es correcta")
+        u.clave_hash = auth.hash_clave(d.nueva)
 
 
 # --------------------------------------------------------------- usuarios (administrador)

@@ -110,3 +110,16 @@ def test_admin_registra_zonas(client):
 def test_parametros_publicos(client):
     p = client.get("/api/parametros").json()
     assert p["puntos"]["base_por_recoleccion"] == 5 and "validación" in p["puntos"]["nota"]
+
+
+def test_mi_perfil_y_clave(client):
+    tok = client.post("/api/auth/registro", json=REG).json()["token"]
+    a = {"Authorization": f"Bearer {tok}"}
+    r = client.patch("/api/auth/yo", headers=a, json={"nombre": "Hogar Nuevo", "direccion": "Mz 9 casa 2", "zona": "Sector 1"})
+    assert r.status_code == 200 and r.json()["nombre"] == "Hogar Nuevo" and r.json()["zona"] == "Sector 1"
+    assert client.patch("/api/auth/yo", headers=a, json={"zona": "Marte"}).status_code == 400
+    # No puede cambiarse el perfil desde aquí
+    assert client.patch("/api/auth/yo", headers=a, json={"rol": "administrador"}).json()["rol"] == "solicitante"
+    assert client.post("/api/auth/clave", headers=a, json={"actual": "mala", "nueva": "otra123"}).status_code == 400
+    assert client.post("/api/auth/clave", headers=a, json={"actual": "secreta1", "nueva": "otra123"}).status_code == 204
+    assert client.post("/api/auth/login", json={"telefono": "3007778899", "clave": "otra123"}).status_code == 200

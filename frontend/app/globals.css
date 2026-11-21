@@ -25,23 +25,45 @@
   --tinte: #e7f3e9;
   --alerta: #b4232a;
   --radio: 16px;
+  --boton2-borde: var(--eco-forest);
 }
+/* Modo oscuro con la misma paleta: fondos verde bosque, acentos hoja, turquesa y amarillo.
+   Se activa por el sistema (automático) o a mano desde el menú (data-theme). */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --fondo: #0b1a15;
-    --superficie: #122821;
-    --texto: #e9efeb;
-    --titulo: #d9f0de;
-    --suave: #a7b8ad;
-    --borde: #2a4238;
-    --primario: #2aa244;
-    --primario-texto: #ffffff;
-    --enlace: #7fd18f;
-    --organico: #7fd18f;
-    --reciclable: #5fd3ad;
-    --tinte: #17372b;
-    --alerta: #ff8a8f;
+  :root:not([data-theme="light"]) {
+    --fondo: #04271E;
+    --superficie: var(--eco-forest);
+    --texto: #F2F5F2;
+    --titulo: #FFFFFF;
+    --suave: #B8CEC3;
+    --borde: #1C5644;
+    --primario: var(--eco-green);
+    --primario-texto: #FFFFFF;
+    --enlace: #A6D86C;      /* hoja aclarada para leer sobre verde bosque */
+    --organico: #A6D86C;
+    --reciclable: #5FD6B0;  /* turquesa aclarado */
+    --tinte: #0C4D3B;
+    --alerta: #FF9A8F;
+    --boton2-borde: #A6D86C;
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --fondo: #04271E;
+    --superficie: var(--eco-forest);
+    --texto: #F2F5F2;
+    --titulo: #FFFFFF;
+    --suave: #B8CEC3;
+    --borde: #1C5644;
+    --primario: var(--eco-green);
+    --primario-texto: #FFFFFF;
+    --enlace: #A6D86C;      /* hoja aclarada para leer sobre verde bosque */
+    --organico: #A6D86C;
+    --reciclable: #5FD6B0;  /* turquesa aclarado */
+    --tinte: #0C4D3B;
+    --alerta: #FF9A8F;
+    --boton2-borde: #A6D86C;
+    color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font-body); font-size: 16px; background: var(--fondo); color: var(--texto); line-height: 1.5; }
@@ -73,7 +95,7 @@ textarea { min-height: 72px; }
 /* Botón principal: verde Eco, texto blanco. Secundario: blanco con borde verde bosque. */
 button, .boton { display: inline-block; font-family: var(--font-body); padding: 12px 18px; font-size: 1rem; font-weight: 600; border: 2px solid var(--primario); border-radius: 14px; background: var(--primario); color: var(--primario-texto); cursor: pointer; text-decoration: none; text-align: center; box-shadow: 0 4px 0 var(--eco-forest); transition: transform .08s, box-shadow .08s; }
 button:active:not(:disabled), .boton:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--eco-forest); }
-button.secundario, .boton.secundario { background: var(--superficie); color: var(--titulo); border-color: var(--eco-forest); box-shadow: 0 3px 0 var(--borde); }
+button.secundario, .boton.secundario { background: var(--superficie); color: var(--titulo); border-color: var(--boton2-borde); box-shadow: 0 3px 0 var(--borde); }
 button:disabled { opacity: .55; cursor: default; }
 button:focus-visible, .boton:focus-visible, .opcion:focus-visible { outline: 3px solid var(--eco-yellow); outline-offset: 2px; }
 .fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -184,3 +206,54 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--borde); 
   .dia { font-size: .7rem; }
   .dia b { font-size: 1.1rem; }
 }
+
+/* En oscuro, las ilustraciones van sobre una placa clara para conservar su trazo verde bosque */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .opcion svg, :root:not([data-theme="light"]) .insignia svg,
+  :root:not([data-theme="light"]) .consejo svg, :root:not([data-theme="light"]) .plasticos svg,
+  :root:not([data-theme="light"]) .ilustracion { background: var(--eco-background); border-radius: 12px; }
+}
+:root[data-theme="dark"] .opcion svg, :root[data-theme="dark"] .insignia svg, :root[data-theme="dark"] .consejo svg,
+:root[data-theme="dark"] .plasticos svg, :root[data-theme="dark"] .ilustracion { background: var(--eco-background); border-radius: 12px; }
+
+/* ---------- Menú hamburguesa ---------- */
+.hamburguesa { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; background: transparent; color: var(--eco-forest); border: 2px solid transparent; box-shadow: none; border-radius: 12px; font-size: .9rem; }
+.hamburguesa:hover { background: #E7F3E9; }
+.hamburguesa:active:not(:disabled) { transform: none; box-shadow: none; }
+.hamburguesa svg { width: 26px; height: 26px; }
+.velo { position: fixed; inset: 0; background: rgba(6, 59, 46, .45); z-index: 20; animation: aparecer .2s ease; }
+.cajon { position: fixed; top: 0; left: 0; bottom: 0; width: min(320px, 86vw); background: var(--superficie); color: var(--texto); z-index: 21; display: flex; flex-direction: column; box-shadow: 4px 0 24px rgba(0,0,0,.2); animation: deslizar .22s ease; overflow-y: auto; }
+.cajon-cabeza { display: flex; justify-content: space-between; align-items: center; padding: 12px 12px 12px 16px; background: #fff; border-bottom: 3px solid var(--eco-green); }
+.cajon-cabeza img { width: 180px; height: auto; }
+.cajon-cabeza button { padding: 6px 12px; box-shadow: none; }
+.cajon nav { display: flex; flex-direction: column; padding: 8px; }
+.cajon nav a, .cajon nav button.item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; color: var(--texto); text-decoration: none; font-weight: 600; background: transparent; border: 0; box-shadow: none; text-align: left; font-size: 1rem; }
+.cajon nav a:hover, .cajon nav button.item:hover { background: var(--tinte); }
+.cajon nav a[aria-current="page"] { background: var(--tinte); color: var(--titulo); }
+.cajon .icono { width: 28px; text-align: center; font-size: 1.2rem; }
+.cajon hr { border: 0; border-top: 1px solid var(--borde); margin: 8px 12px; }
+.cajon .tema { padding: 4px 16px 16px; }
+.cajon .tema p { margin: 0 0 8px; font-weight: 600; }
+.segmentos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--fondo); border-radius: 14px; padding: 4px; }
+.segmentos button { padding: 8px 4px; font-size: .85rem; background: transparent; color: var(--texto); border: 0; box-shadow: none; border-radius: 10px; }
+.segmentos button[aria-checked="true"] { background: var(--primario); color: #fff; }
+@keyframes deslizar { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- Ayuda y tutorial ---------- */
+.faq details { background: var(--superficie); border: 1px solid var(--borde); border-radius: 14px; margin-bottom: 8px; }
+.faq summary { cursor: pointer; padding: 14px 16px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-size: 1.3rem; line-height: 1; color: var(--primario); }
+.faq details[open] summary::after { content: "−"; }
+.faq details > div { padding: 0 16px 14px; }
+.faq details > div p { margin: 0 0 8px; }
+.buscador { margin-bottom: 16px; }
+.pasos-tutorial { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.pasos-tutorial li { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+.pasos-tutorial .ilustracion { width: 96px; height: 80px; display: flex; align-items: center; justify-content: center; }
+.pasos-tutorial .ilustracion svg { width: 100%; height: 100%; }
+.numero { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--eco-yellow); color: var(--eco-charcoal); font-weight: 700; align-items: center; justify-content: center; font-size: .85rem; margin-right: 6px; }
+@media (prefers-reduced-motion: reduce) { .cajon, .velo { animation: none; } }
+.solo-ancho { display: none; }
+@media (min-width: 640px) { .solo-ancho { display: inline; } }

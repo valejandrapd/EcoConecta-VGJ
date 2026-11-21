@@ -1,4 +1,5 @@
 import "./globals.css";
+import Menu from "../components/Menu";
 
 export const metadata = {
   title: "EcoConecta Villas de San Pablo",
@@ -9,8 +10,14 @@ export const viewport = { width: "device-width", initialScale: 1, themeColor: "#
 
 export default function Layout({ children }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
+        {/* Aplica el modo elegido antes de pintar, para evitar un destello */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{var t=localStorage.getItem('ecoconecta_tema');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}",
+          }}
+        />
         {/* Tipografías del manual de identidad: Poppins (títulos) e Inter (texto y botones). */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -21,7 +28,7 @@ export default function Layout({ children }) {
       </head>
       <body>
         <header className="barra">
-          <a href="/" className="enlace izq">Aprende</a>
+          <Menu />
           <a href="/" className="marca" aria-label="EcoConecta Villas de San Pablo, inicio">
             {/* Logo original del manual: no se recrea con texto ni se altera. */}
             <img src="/logo-ecoconecta.png" alt="EcoConecta Villas de San Pablo" width="220" height="73" />
