@@ -4,7 +4,7 @@
 
 - Canal: solo **WhatsApp Business Cloud API** oficial de Meta. Prohibidas las librerías de WhatsApp Web y los intermediarios no oficiales (Whapi, etc.).
 - Base de datos: solo **PostgreSQL**.
-- IA: OpenAI API, Azure OpenAI, Azure AI Foundry o **Claude API** (la que se usa hoy). Ningún otro proveedor.
+- IA: OpenAI API, Azure OpenAI, Azure AI Foundry o Claude API. Hoy: **Azure OpenAI** en la nube (crédito de Azure for Students) y Claude como alternativa, según `IA_PROVEEDOR` (`backend/app/ia/modelo.py`). Ningún otro proveedor: Google/Gemini está prohibido (sección 8.1).
 - Prohibido no-code o low-code (n8n, Make, Zapier).
 - La IA solo **sugiere**. Nunca crea, asigna, programa ni cierra solicitudes.
 
@@ -29,7 +29,7 @@ Solo cuatro perfiles inician sesión: `solicitante` (usuario), `coordinador_huer
 
 ## Privacidad
 
-- A Claude nunca le envíes nombre, teléfono ni dirección.
+- Al modelo de IA nunca le envíes nombre, teléfono ni dirección.
 - No guardes fotos ni el texto de los mensajes en `mensajes_whatsapp`: solo metadatos.
 - RN-07: el estado de una solicitud solo se revela al número dueño. Si no existe o es ajena, el mensaje es el mismo.
 - No escribas secretos en el código: todo va por variables de entorno (`.env.example` sin valores).

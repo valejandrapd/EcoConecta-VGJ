@@ -1,4 +1,8 @@
-"""Pasos 2 y 3 de la cascada: Claude API con texto y con visión.
+"""Pasos 2 y 3 de la cascada: modelo con texto y con visión.
+
+Proveedores autorizados por el reto (sección 8), según IA_PROVEEDOR:
+- claude: Claude API con el SDK oficial de Anthropic.
+- azure_openai: Azure OpenAI (Azure AI Foundry) con el SDK oficial de OpenAI.
 
 Privacidad: solo se envía la descripción del residuo o la foto ya limpia. Nunca nombre,
 teléfono ni dirección. Tiempo máximo de espera configurable con IA_TIMEOUT_S.
@@ -42,6 +46,43 @@ def _cliente():
 
 
 def _llamar(modelo: str, contenido: list) -> dict:
+    if config().ia_proveedor == "azure_openai":
+        return _llamar_azure(contenido)
+    return _llamar_claude(modelo, contenido)
+
+
+def _llamar_azure(contenido: list) -> dict:
+    """Mismo contrato con Azure OpenAI: traduce las partes (texto e imagen) al formato de chat."""
+    cfg = config()
+    if not (cfg.azure_openai_endpoint and cfg.azure_openai_api_key):
+        raise IANoDisponible("Faltan AZURE_OPENAI_ENDPOINT o AZURE_OPENAI_API_KEY")
+    import openai
+    partes = []
+    for p in contenido:
+        if p["type"] == "text":
+            partes.append({"type": "text", "text": p["text"]})
+        elif p["type"] == "image":
+            partes.append({"type": "image_url", "image_url": {
+                "url": f"data:{p['source']['media_type']};base64,{p['source']['data']}", "detail": "low"}})
+    try:
+        cliente = openai.AzureOpenAI(azure_endpoint=cfg.azure_openai_endpoint, api_key=cfg.azure_openai_api_key,
+                                     api_version=cfg.azure_openai_api_version, timeout=cfg.ia_timeout_s,
+                                     max_retries=1)
+        resp = cliente.chat.completions.create(
+            model=cfg.azure_openai_deployment, max_tokens=200, temperature=0,
+            messages=[{"role": "system", "content": INSTRUCCIONES}, {"role": "user", "content": partes}])
+    except openai.APITimeoutError as e:
+        raise IANoDisponible("Tiempo de espera agotado") from e
+    except openai.APIError as e:
+        log.warning("Fallo de Azure OpenAI: %s", type(e).__name__)
+        raise IANoDisponible(str(type(e).__name__)) from e
+    eleccion = resp.choices[0] if resp.choices else None
+    if not eleccion or eleccion.finish_reason == "content_filter":
+        return {"categoria": "DESCONOCIDO", "objeto": "", "confianza": "baja"}
+    return interpretar(eleccion.message.content or "")
+
+
+def _llamar_claude(modelo: str, contenido: list) -> dict:
     try:
         resp = _cliente().messages.create(
             model=modelo,

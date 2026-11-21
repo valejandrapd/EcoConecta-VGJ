@@ -57,7 +57,7 @@ ETIQUETA="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
 
 paso "Suscripción: $(az account show --query name -o tsv) · grupo $GRUPO · región $REGION"
 az extension add --name containerapp --upgrade --only-show-errors >/dev/null
-for proveedor in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL; do
+for proveedor in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL Microsoft.CognitiveServices; do
   az provider register --namespace "$proveedor" --only-show-errors >/dev/null
 done
 az group create -n "$GRUPO" -l "$REGION" --only-show-errors -o none
@@ -81,6 +81,25 @@ az postgres flexible-server db show -g "$GRUPO" -s "$PG" -d ecoconecta -o none 2
   || az postgres flexible-server db create -g "$GRUPO" -s "$PG" -d ecoconecta --only-show-errors -o none
 PG_HOST="$(az postgres flexible-server show -g "$GRUPO" -n "$PG" --query fullyQualifiedDomainName -o tsv)"
 DATABASE_URL="postgresql+psycopg://${PG_ADMIN}:${PG_CLAVE}@${PG_HOST}:5432/ecoconecta?sslmode=require"
+
+AOAI="ecoconecta-ia-${AZ_SUFIJO}"
+if [ "${IA_PROVEEDOR:-}" = "azure_openai" ] && [ "${CREAR_AZURE_OPENAI:-0}" = "1" ] && [ -z "${AZURE_OPENAI_API_KEY:-}" ]; then
+  paso "Azure OpenAI ($AOAI, modelo ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini})"
+  if ! az cognitiveservices account show -g "$GRUPO" -n "$AOAI" -o none 2>/dev/null; then
+    az cognitiveservices account create -g "$GRUPO" -n "$AOAI" -l "${AZ_REGION_IA:-eastus}" \
+      --kind OpenAI --sku S0 --custom-domain "$AOAI" --yes --only-show-errors -o none \
+      || echo "No pude crear Azure OpenAI en ${AZ_REGION_IA:-eastus}. Sigo sin IA (las reglas por palabras funcionan)."
+  fi
+  if az cognitiveservices account show -g "$GRUPO" -n "$AOAI" -o none 2>/dev/null; then
+    az cognitiveservices account deployment show -g "$GRUPO" -n "$AOAI" --deployment-name "${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}" -o none 2>/dev/null \
+      || az cognitiveservices account deployment create -g "$GRUPO" -n "$AOAI" \
+           --deployment-name "${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}" --model-name gpt-4o-mini --model-version 2024-07-18 \
+           --model-format OpenAI --sku-name GlobalStandard --sku-capacity 10 --only-show-errors -o none \
+      || echo "No pude desplegar el modelo. Revisa la cuota en Azure AI Foundry; sigo sin IA."
+    AZURE_OPENAI_ENDPOINT="$(az cognitiveservices account show -g "$GRUPO" -n "$AOAI" --query properties.endpoint -o tsv)"
+    AZURE_OPENAI_API_KEY="$(az cognitiveservices account keys list -g "$GRUPO" -n "$AOAI" --query key1 -o tsv)"
+  fi
+fi
 
 paso "Entorno de Container Apps"
 if ! az containerapp env show -g "$GRUPO" -n "$ENTORNO" -o none 2>/dev/null; then
@@ -116,6 +135,9 @@ agregar_secreto() {  # nombre-secreto VARIABLE valor
 }
 agregar_secreto demo-clave DEMO_CLAVE "${DEMO_CLAVE:-}"
 agregar_secreto anthropic-api-key ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
+agregar_secreto azure-openai-key AZURE_OPENAI_API_KEY "${AZURE_OPENAI_API_KEY:-}"
+[ -z "${IA_PROVEEDOR:-}" ] || ENV_BACK+=("IA_PROVEEDOR=$IA_PROVEEDOR")
+[ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || ENV_BACK+=("AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" "AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}")
 agregar_secreto whatsapp-token WHATSAPP_TOKEN "${WHATSAPP_TOKEN:-}"
 agregar_secreto whatsapp-verify-token WHATSAPP_VERIFY_TOKEN "${WHATSAPP_VERIFY_TOKEN:-}"
 agregar_secreto whatsapp-app-secret WHATSAPP_APP_SECRET "${WHATSAPP_APP_SECRET:-}"

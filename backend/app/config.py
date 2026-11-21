@@ -36,7 +36,13 @@ class Config:
     plantilla_nueva_solicitud: str
     plantilla_solicitud_programada: str
     # IA (Claude API)
+    # IA: proveedor autorizado por el reto. 'claude' (Claude API) o 'azure_openai' (Azure OpenAI / AI Foundry)
+    ia_proveedor: str
     anthropic_api_key: str
+    azure_openai_endpoint: str
+    azure_openai_api_key: str
+    azure_openai_deployment: str
+    azure_openai_api_version: str
     ia_modelo_texto: str
     ia_modelo_vision: str
     ia_timeout_s: float
@@ -63,6 +69,16 @@ class Config:
         return self.notificador == "whatsapp" and bool(self.wa_token and self.wa_phone_number_id)
 
 
+def _proveedor_ia() -> str:
+    """IA_PROVEEDOR explícito; si no, Azure OpenAI cuando tiene endpoint y clave, y si no, Claude."""
+    elegido = os.environ.get("IA_PROVEEDOR", "").strip().lower()
+    if elegido in {"claude", "azure_openai"}:
+        return elegido
+    if os.environ.get("AZURE_OPENAI_ENDPOINT") and os.environ.get("AZURE_OPENAI_API_KEY"):
+        return "azure_openai"
+    return "claude"
+
+
 @lru_cache
 def config() -> Config:
     modelo = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")
@@ -81,7 +97,12 @@ def config() -> Config:
         plantilla_solicitud_recibida=os.environ.get("PLANTILLA_SOLICITUD_RECIBIDA", "solicitud_recibida"),
         plantilla_nueva_solicitud=os.environ.get("PLANTILLA_NUEVA_SOLICITUD", "nueva_solicitud"),
         plantilla_solicitud_programada=os.environ.get("PLANTILLA_SOLICITUD_PROGRAMADA", "solicitud_programada"),
+        ia_proveedor=_proveedor_ia(),
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        azure_openai_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/"),
+        azure_openai_api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
+        azure_openai_deployment=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini"),
+        azure_openai_api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
         ia_modelo_texto=os.environ.get("IA_MODELO_TEXTO", modelo),
         ia_modelo_vision=os.environ.get("IA_MODELO_VISION", modelo),
         ia_timeout_s=_float("IA_TIMEOUT_S", 20),

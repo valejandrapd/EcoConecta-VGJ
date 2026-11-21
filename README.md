@@ -5,7 +5,7 @@ Plataforma para conectar a hogares y unidades productivas de Villas de San Pablo
 - **Frontend:** React con Next.js (`frontend/`), pensado para móvil y tableta. Sigue el Manual de Identidad Visual del reto: colores como tokens `--eco-*` en `app/globals.css`, Poppins para títulos e Inter para texto, y el logo original en `public/logo-ecoconecta.png`.
 - **Backend:** Python, FastAPI, SQLAlchemy y Psycopg, con PostgreSQL (`backend/`).
 - **Canal:** WhatsApp Business Cloud API de Meta (`backend/app/whatsapp/`).
-- **IA:** Claude API con el SDK oficial de Anthropic. Hace una clasificación orientativa del residuo y no toma decisiones (`backend/app/ia/`).
+- **IA:** Azure OpenAI (modelo `gpt-4o-mini` en Azure AI Foundry, con el SDK oficial de OpenAI) en la nube, o Claude API con el SDK oficial de Anthropic; se elige con `IA_PROVEEDOR`. Hace una clasificación orientativa del residuo y no toma decisiones (`backend/app/ia/`).
 - **URL publicada:** _pendiente del despliegue en la nube_.
 
 ## Tecnologías y cumplimiento (sección 8 del reto)
@@ -15,10 +15,10 @@ Plataforma para conectar a hogares y unidades productivas de Villas de San Pablo
 | Lenguajes | Python, TypeScript, JavaScript, HTML, CSS | Python |
 | Base de datos | PostgreSQL | PostgreSQL 16 |
 | Mensajería | WhatsApp Business Cloud API | WhatsApp Business Cloud API (Graph API), con `urllib` de la librería estándar |
-| Modelos de IA | OpenAI, Azure OpenAI, Azure AI Foundry, Claude API | Claude API |
+| Modelos de IA | OpenAI, Azure OpenAI, Azure AI Foundry, Claude API | Azure OpenAI (AI Foundry) o Claude API |
 | Infraestructura | Docker y Git | Docker / Docker Compose, Git y GitHub |
 | Backend Python | FastAPI, Flask, Django, SQLAlchemy, Psycopg, Pydantic, Pandas | FastAPI, SQLAlchemy, Psycopg, Pydantic |
-| Agentes y modelos | SDK oficial de Anthropic, entre otros | SDK oficial de Anthropic (`anthropic`) |
+| Agentes y modelos | SDK oficial de OpenAI, SDK oficial de Anthropic, entre otros | SDK oficial de OpenAI (`openai`) y de Anthropic (`anthropic`) |
 | Frontend | React, Next.js, Vue | React 19 con Next.js 15 |
 | Estilos | Tailwind CSS, Bootstrap | CSS propio (lenguaje permitido), sin librerías |
 
@@ -47,7 +47,7 @@ flowchart LR
         API[api/rutas] --> SOL[solicitudes: RN-01 a RN-06] --> NOT[notificaciones] --> MSJ
         MSJ --> CLI[whatsapp/cliente]
     end
-    IA -- texto o foto limpia --> CLAUDE[Claude API]
+    IA -- texto o foto limpia --> CLAUDE[Azure OpenAI o Claude API]
     CLI -- Graph API --> META
     backend --> PG[(PostgreSQL)]
 ```
@@ -86,7 +86,7 @@ pip install -r requirements-dev.txt
 TEST_DATABASE_URL=postgresql+psycopg://usuario:clave@localhost:5432/ecoconecta_test python -m pytest
 ```
 
-Son 46 pruebas contra PostgreSQL real. Simulan Meta y Claude, así que no necesitan credenciales. Incluyen el escenario mínimo de demostración de la sección 11 (`tests/test_flujo_reto.py`).
+Son 66 pruebas contra PostgreSQL real. Simulan Meta y la IA, así que no necesitan credenciales. Incluyen el escenario mínimo de demostración de la sección 11 (`tests/test_flujo_reto.py`).
 
 ## Reglas del reto implementadas
 
@@ -177,7 +177,7 @@ El script firma la carga como lo hace Meta, y las respuestas aparecen en el log 
 - **Webhook:** valida `hub.verify_token` y `X-Hub-Signature-256`, responde 200 enseguida y procesa con `BackgroundTasks`, sin colas externas.
 - **Duplicados:** el id del mensaje de Meta tiene restricción `UNIQUE` (`mensajes_whatsapp.wa_message_id`), y los reintentos se descartan.
 - **Ventana de 24 h:** dentro de ella se envía texto libre; fuera de ella, solo plantillas aprobadas.
-- **Control de abuso:** `LIMITE_MENSAJES_DIA` por número. Hay tiempo máximo de espera en Claude (`IA_TIMEOUT_S`) y en la Graph API (`GRAPH_TIMEOUT_S`), con mensaje de contingencia.
+- **Control de abuso:** `LIMITE_MENSAJES_DIA` por número. Hay tiempo máximo de espera en la IA (`IA_TIMEOUT_S`) y en la Graph API (`GRAPH_TIMEOUT_S`), con mensaje de contingencia.
 - **Identidad:** el `wa_id` se normaliza a E.164 y se busca en `usuarios.telefono`. Un número no registrado o fuera del piloto solo recibe información general.
 - **IA (sección 9):** el modelo es el de `CLAUDE_MODEL` (por defecto `claude-sonnet-5-5`). Solo recibe la descripción del residuo o la foto, sin EXIF y de 1024 px como máximo; nunca nombre, teléfono ni dirección. El resultado es una sugerencia con nivel de confianza.
   - **Controles:** las reglas se aplican primero; la respuesta se valida contra categorías cerradas; si la IA falla o tarda, se envía un mensaje de contingencia; la respuesta aclara que es una sugerencia; y la persona siempre elige el flujo en el formulario.
@@ -196,7 +196,7 @@ Todas están documentadas, sin valores, en [`.env.example`](.env.example):
 
 - **Base de datos:** `DATABASE_URL`, `POSTGRES_PASSWORD`.
 - **WhatsApp:** `NOTIFICADOR`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `GRAPH_API_VERSION`, `GRAPH_TIMEOUT_S`, `PLANTILLA_*`, `WHATSAPP_PLANTILLA_IDIOMA`.
-- **IA:** `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `IA_MODELO_TEXTO`, `IA_MODELO_VISION`, `IA_TIMEOUT_S`.
+- **IA:** `IA_PROVEEDOR` (`azure_openai` o `claude`), `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION`, `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `IA_MODELO_TEXTO`, `IA_MODELO_VISION`, `IA_TIMEOUT_S`.
 - **Bot:** `LIMITE_MENSAJES_DIA`, `RETENCION_MENSAJES_DIAS`, `ZONA_HORARIA`, `PAIS_TELEFONO`, `URL_FORMULARIO_SOLICITUD`, `URL_REGISTRO`.
 - **API y web:** `SERVICE_API_KEY`, `AUTH_SECRET`, `SESION_HORAS`.
 - **Datos de demostración:** `DEMO_TELEFONO`, `DEMO_CLAVE`.

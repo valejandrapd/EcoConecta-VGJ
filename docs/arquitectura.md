@@ -22,7 +22,7 @@ flowchart TB
         API["/api (Bearer token, perfiles)"]
     end
     PG[(PostgreSQL)]
-    CLAUDE[Claude API]
+    CLAUDE[Azure OpenAI o Claude API]
 
     WA --> META -- "firma X-Hub-Signature-256" --> WH --> BG --> BOT
     BOT --> CASC --> REG

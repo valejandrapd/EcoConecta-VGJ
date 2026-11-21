@@ -82,3 +82,45 @@ def test_normalizar_telefono():
     assert normalizar("300 111 2233") == "+573001112233"
     assert normalizar("+57 (300) 111-2233") == "+573001112233"
     assert normalizar("abc") == ""
+
+
+def test_azure_openai_traduce_texto_e_imagen(monkeypatch):
+    """Con IA_PROVEEDOR=azure_openai se usa el SDK oficial de OpenAI con el mismo contrato."""
+    from dataclasses import replace
+    from types import SimpleNamespace
+    import openai
+    from app import config as cfg_mod
+
+    original = cfg_mod.config()
+    monkeypatch.setattr(modelo, "config", lambda: replace(
+        original, ia_proveedor="azure_openai", azure_openai_endpoint="https://eco.openai.azure.com",
+        azure_openai_api_key="k", azure_openai_deployment="gpt-4o-mini"))
+    pedidos = []
+
+    class Falso:
+        def __init__(self, **kw):
+            pedidos.append(kw)
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.crear))
+
+        def crear(self, **kw):
+            pedidos.append(kw)
+            msg = SimpleNamespace(content='{"categoria":"RECICLABLE","objeto":"botella","confianza":"alta"}')
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason="stop")])
+
+    monkeypatch.setattr(openai, "AzureOpenAI", Falso)
+    assert modelo.clasificar_texto("una botella")["categoria"] == "RECICLABLE"
+    assert pedidos[0]["azure_endpoint"] == "https://eco.openai.azure.com"
+    assert pedidos[1]["model"] == "gpt-4o-mini" and pedidos[1]["messages"][0]["role"] == "system"
+    modelo.clasificar_imagen(b"\xff\xd8jpeg")
+    imagen = pedidos[3]["messages"][1]["content"][0]
+    assert imagen["type"] == "image_url" and imagen["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
+def test_azure_openai_sin_clave_no_disponible(monkeypatch):
+    from dataclasses import replace
+    import pytest
+    from app import config as cfg_mod
+    original = cfg_mod.config()
+    monkeypatch.setattr(modelo, "config", lambda: replace(original, ia_proveedor="azure_openai"))
+    with pytest.raises(modelo.IANoDisponible):
+        modelo.clasificar_texto("algo")
