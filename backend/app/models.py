@@ -165,7 +165,7 @@ class Contenido(Base):
     """Información educativa. El bot SOLO responde con lo que haya aquí."""
     __tablename__ = "contenidos"
     id: Mapped[int] = mapped_column(primary_key=True)
-    tipo: Mapped[str] = mapped_column(String(20))  # tutorial | horario | ruta | general
+    tipo: Mapped[str] = mapped_column(String(20))  # tutorial | huerta | horario | ruta | general
     titulo: Mapped[str] = mapped_column(String(160))
     cuerpo: Mapped[str] = mapped_column(Text)
     palabras_clave: Mapped[str] = mapped_column(Text, default="")  # separadas por coma

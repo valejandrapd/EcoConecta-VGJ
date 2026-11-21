@@ -32,6 +32,39 @@ CONTENIDOS = [
      "La coordinación organiza las rutas por sector según las solicitudes de la semana. "
      "También puedes llevar tus reciclables al punto de recolección comunitario.",
      "ruta,rutas,sector,punto de recoleccion", None),
+    ("huerta", "La huerta comunitaria",
+     "Es un espacio de la comunidad de Villas de San Pablo. Los voluntarios de huerta siembran y convierten los "
+     "residuos orgánicos del barrio en abono, así tus cáscaras vuelven a la tierra en lugar de ir a la basura.",
+     "huerta,huerta comunitaria,voluntarios,voluntario de huerta", "organico"),
+    ("huerta", "Cómo se hace el compost",
+     "En la huerta los orgánicos se revisan, se mezclan con hojas secas y se dejan descomponer, volteándolos de vez "
+     "en cuando. Con el tiempo se vuelven abono para las siembras. Por eso deben llegar sin plásticos ni stickers.",
+     "compost,compostaje,abono,como se hace el compost", "organico"),
+    ("huerta", "Qué recibe la huerta y qué no",
+     "Sí: cáscaras de frutas y verduras, borra de café, cáscaras de huevo, hojas y flores. No: carne, huesos, "
+     "lácteos, grasa, comida con aceite, heces de mascotas ni papel higiénico, porque atraen plagas o dañan el compost.",
+     "que recibe la huerta,carne,huesos,lacteos,que no va", "organico"),
+    ("huerta", "Servicios del huerto con tus puntos",
+     "Al pedir una recolección puedes elegir que tus puntos sean para servicios del huerto. Tu trinitaria crece cada "
+     "5 puntos. Los servicios disponibles los define la huerta con la Fundación Santo Domingo.",
+     "servicios del huerto,trinitaria,puntos huerta", None),
+    ("general", "¿Qué es EcoConecta?",
+     "Es el canal único de Villas de San Pablo para aprender a separar, pedir la recolección de tus residuos y "
+     "seguirla. Lo usas desde la web o por WhatsApp, y no reemplaza el voz a voz ni a los líderes del barrio: los apoya.",
+     "que es ecoconecta,ecoconecta,canal", None),
+    ("general", "Quiénes participan",
+     "Hogares y negocios que separan; recicladores de oficio que recogen orgánicos y reciclables; voluntarios de "
+     "huerta que hacen el compost; y la coordinación de huerta y de reciclaje, que organiza las visitas. En el barrio "
+     "también apoyan el punto de recolección comunitario y entidades como la Alcaldía, Siembra Barranquilla y Asorescatar.",
+     "quienes participan,actores,recicladores,asorescatar,siembra barranquilla", None),
+    ("general", "Cómo funcionan los puntos",
+     "Los puntos se suman solo cuando la coordinación registra la recolección: unos puntos base más puntos por kilo. "
+     "Son valores de ejemplo del piloto, sujetos a validación de la Fundación Santo Domingo.",
+     "puntos,como gano puntos,kilos,alcancia", None),
+    ("general", "Tus datos están protegidos",
+     "Solo pedimos lo necesario para atender tu solicitud. Tu teléfono y dirección solo los ve la coordinación que la "
+     "atiende, y las fotos que envías no se guardan.",
+     "datos,privacidad,mis datos", None),
 ]
 
 # (nombre, telefono, rol, tipo_generador, direccion)
@@ -59,8 +92,11 @@ def cargar():
     demo = normalizar(os.environ.get("DEMO_TELEFONO", "+573000000001"))
     clave = os.environ.get("DEMO_CLAVE") or secrets.token_urlsafe(9)
     with sesion() as s:
-        if s.scalar(select(Contenido.id).limit(1)) is None:
-            for tipo, titulo, cuerpo, claves, flujo in CONTENIDOS:
+        # Contenidos de ejemplo para cada sección vacía. Una base ya cargada recibe las secciones nuevas
+        # sin duplicar, y lo que el administrador borró de una sección con contenido no vuelve.
+        con_contenido = set(s.scalars(select(Contenido.tipo)))
+        for tipo, titulo, cuerpo, claves, flujo in CONTENIDOS:
+            if tipo not in con_contenido:
                 s.add(Contenido(tipo=tipo, titulo=titulo, cuerpo=cuerpo, palabras_clave=claves, flujo=flujo))
         # Zonas ficticias (el administrador las cambia desde la web)
         if s.scalar(select(Zona.id).limit(1)) is None:
