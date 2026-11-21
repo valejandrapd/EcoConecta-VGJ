@@ -205,25 +205,23 @@ Todas están documentadas, sin valores, en [`.env.example`](.env.example):
 
 ## Infraestructura en la nube
 
-_Pendiente._ Al desplegar hay que declarar aquí:
-
-- el proveedor;
-- el cómputo (los contenedores del backend y del frontend);
-- la base de datos (PostgreSQL administrado);
-- el almacenamiento (ninguno: las fotos no se guardan);
-- las redes (HTTPS público para `/webhook`);
-- la URL publicada.
+- **Proveedor:** Microsoft Azure. Guía completa: [docs/despliegue-azure.md](docs/despliegue-azure.md). Un solo comando: `bash infra/azure/desplegar.sh`.
+- **Cómputo:** Azure Container Apps, una app para el backend (FastAPI, con `/webhook`) y otra para el frontend (Next.js). Las imágenes viven en Azure Container Registry.
+- **Base de datos:** Azure Database for PostgreSQL, servidor flexible (PostgreSQL 16, conexión con TLS).
+- **Almacenamiento:** ninguno. Las fotos no se guardan.
+- **Redes:** HTTPS público administrado por Container Apps para la web y para `/webhook`. El frontend llama al backend por su URL HTTPS.
+- **Secretos:** secretos de Container Apps, leídos de `.env.azure`, que no se sube a Git.
+- **URL publicada:** _se completa al desplegar._
 
 ## Implementado, simulado y pendiente
 
-- **Implementado:** el modelo de datos y las reglas RN-01 a RN-08, la API por perfil, la autenticación, la web en React para los cinco perfiles, el bot de WhatsApp, las notificaciones, la IA orientativa y las pruebas del escenario mínimo (API y navegador).
+- **Implementado:** el modelo de datos y las reglas RN-01 a RN-08, la API por perfil, la autenticación, la web en React para los cuatro perfiles con acceso, el bot de WhatsApp, las notificaciones, la IA orientativa y las pruebas del escenario mínimo (API y navegador).
 - **Simulado:** en pruebas y demos locales, Meta y Claude se reemplazan por dobles (`NOTIFICADOR=log`, `ClienteFalso`). Todos los datos son ficticios.
 - **Pendiente:**
-  - despliegue en la nube con URL;
+  - URL pública definitiva (el despliegue en Azure ya está preparado);
   - migración de `chatbot/` a la API oficial y PostgreSQL (la hace otro integrante);
   - recuperación de clave;
-  - migraciones con Alembic (hoy se usa `create_all`);
-  - creación de solicitudes por chat (opcional).
+  - migraciones con Alembic (hoy se usa `create_all`).
 
 ## Estructura
 

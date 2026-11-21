@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# Despliega EcoConecta en Azure:
+#   - Azure Container Registry: construye las imágenes en la nube (no necesitas Docker local)
+#   - Azure Database for PostgreSQL (servidor flexible, Burstable B1ms)
+#   - Azure Container Apps: backend (FastAPI, con el webhook de WhatsApp) y frontend (Next.js)
+#
+# Requisitos: Azure CLI (`az`) con sesión iniciada (`az login`) y el archivo .env.azure en la raíz.
+# Uso, desde la raíz del repo:   bash infra/azure/desplegar.sh
+# Se puede volver a ejecutar: actualiza las imágenes y la configuración sin borrar datos.
+# Los valores secretos nunca se imprimen.
+set -euo pipefail
+
+RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"
+CONF="$RAIZ/.env.azure"
+cd "$RAIZ"
+
+paso() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
+falla() { printf '\033[1;31mError: %s\033[0m\n' "$*" >&2; exit 1; }
+
+command -v az >/dev/null || falla "No encuentro Azure CLI. Instálalo: https://learn.microsoft.com/cli/azure/install-azure-cli"
+[ -f "$CONF" ] || { cp infra/azure/azure.env.example "$CONF"; echo "Creé .env.azure desde la plantilla. Revísalo y vuelve a ejecutar."; exit 1; }
+az account show >/dev/null 2>&1 || falla "No hay sesión de Azure. Ejecuta: az login"
+
+# Guarda una variable en .env.azure (sin mostrar su valor)
+guardar() {
+  local clave="$1" valor="$2"
+  if grep -q "^${clave}=" "$CONF"; then
+    python3 - "$CONF" "$clave" "$valor" <<'PY'
+import sys
+ruta, clave, valor = sys.argv[1:]
+lineas = open(ruta).read().splitlines()
+open(ruta, "w").write("\n".join(f"{clave}={valor}" if l.startswith(clave + "=") else l for l in lineas) + "\n")
+PY
+  else
+    printf '%s=%s\n' "$clave" "$valor" >> "$CONF"
+  fi
+}
+aleatorio() { python3 -c "import secrets; print(secrets.token_hex($1))"; }
+
+set -a; . "$CONF"; set +a
+
+# Valores generados una sola vez
+if [ -z "${AZ_SUFIJO:-}" ]; then AZ_SUFIJO="$(az account show --query id -o tsv | sha1sum | cut -c1-6)"; guardar AZ_SUFIJO "$AZ_SUFIJO"; fi
+if [ -z "${PG_CLAVE:-}" ]; then PG_CLAVE="Eco$(aleatorio 12)9"; guardar PG_CLAVE "$PG_CLAVE"; fi
+if [ -z "${AUTH_SECRET:-}" ]; then AUTH_SECRET="$(aleatorio 32)"; guardar AUTH_SECRET "$AUTH_SECRET"; fi
+if [ -z "${SERVICE_API_KEY:-}" ]; then SERVICE_API_KEY="$(aleatorio 24)"; guardar SERVICE_API_KEY "$SERVICE_API_KEY"; fi
+if [ "${SEMBRAR_DEMO:-0}" = "1" ] && [ -z "${DEMO_CLAVE:-}" ]; then DEMO_CLAVE="$(aleatorio 6)"; guardar DEMO_CLAVE "$DEMO_CLAVE"; fi
+
+GRUPO="${AZ_GRUPO:-ecoconecta-rg}"
+REGION="${AZ_REGION:-eastus2}"
+ACR="ecoconecta${AZ_SUFIJO}"
+PG="ecoconecta-pg-${AZ_SUFIJO}"
+ENTORNO="ecoconecta-env"
+BACK="ecoconecta-api"
+FRONT="ecoconecta-web"
+ETIQUETA="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
+
+paso "Suscripción: $(az account show --query name -o tsv) · grupo $GRUPO · región $REGION"
+az extension add --name containerapp --upgrade --only-show-errors >/dev/null
+for proveedor in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL; do
+  az provider register --namespace "$proveedor" --only-show-errors >/dev/null
+done
+az group create -n "$GRUPO" -l "$REGION" --only-show-errors -o none
+
+paso "Registro de contenedores ($ACR)"
+if ! az acr show -n "$ACR" -o none 2>/dev/null; then
+  az acr create -g "$GRUPO" -n "$ACR" --sku Basic --admin-enabled true -l "$REGION" --only-show-errors -o none
+fi
+ACR_SERVIDOR="$(az acr show -n "$ACR" --query loginServer -o tsv)"
+ACR_USUARIO="$(az acr credential show -n "$ACR" --query username -o tsv)"
+ACR_CLAVE="$(az acr credential show -n "$ACR" --query 'passwords[0].value' -o tsv)"
+
+paso "PostgreSQL ($PG). La primera vez tarda unos 5 minutos"
+if ! az postgres flexible-server show -g "$GRUPO" -n "$PG" -o none 2>/dev/null; then
+  az postgres flexible-server create -g "$GRUPO" -n "$PG" -l "$REGION" \
+    --tier Burstable --sku-name Standard_B1ms --storage-size 32 --version 16 \
+    --admin-user "$PG_ADMIN" --admin-password "$PG_CLAVE" \
+    --public-access 0.0.0.0 --yes --only-show-errors -o none
+fi
+az postgres flexible-server db show -g "$GRUPO" -s "$PG" -d ecoconecta -o none 2>/dev/null \
+  || az postgres flexible-server db create -g "$GRUPO" -s "$PG" -d ecoconecta --only-show-errors -o none
+PG_HOST="$(az postgres flexible-server show -g "$GRUPO" -n "$PG" --query fullyQualifiedDomainName -o tsv)"
+DATABASE_URL="postgresql+psycopg://${PG_ADMIN}:${PG_CLAVE}@${PG_HOST}:5432/ecoconecta?sslmode=require"
+
+paso "Entorno de Container Apps"
+if ! az containerapp env show -g "$GRUPO" -n "$ENTORNO" -o none 2>/dev/null; then
+  az containerapp env create -g "$GRUPO" -n "$ENTORNO" -l "$REGION" --only-show-errors -o none
+fi
+
+# Construye en Azure (ACR Tasks). Algunas suscripciones (prueba gratuita, estudiantes) no permiten
+# ACR Tasks: en ese caso se construye con Docker local y se sube la imagen.
+construir() {  # imagen carpeta [build-arg]
+  local imagen="$1" carpeta="$2" arg="${3:-}"
+  if az acr build -r "$ACR" -t "$imagen" ${arg:+--build-arg "$arg"} "$carpeta" --only-show-errors -o none; then
+    return 0
+  fi
+  echo "ACR Tasks no está disponible; construyo con Docker local."
+  command -v docker >/dev/null || falla "Necesito Docker instalado para construir la imagen localmente."
+  az acr login -n "$ACR" --only-show-errors >/dev/null
+  docker build -t "$ACR_SERVIDOR/$imagen" ${arg:+--build-arg "$arg"} "$carpeta"
+  docker push "$ACR_SERVIDOR/$imagen"
+}
+
+paso "Imagen del backend"
+construir "backend:$ETIQUETA" ./backend
+
+# Secretos: solo los que tienen valor. Nunca se imprimen.
+SECRETOS=("database-url=$DATABASE_URL" "auth-secret=$AUTH_SECRET" "service-api-key=$SERVICE_API_KEY")
+ENV_BACK=("DATABASE_URL=secretref:database-url" "AUTH_SECRET=secretref:auth-secret" "SERVICE_API_KEY=secretref:service-api-key"
+          "MODO_PILOTO=${MODO_PILOTO:-true}" "SEMBRAR_DEMO=${SEMBRAR_DEMO:-0}")
+[ -z "${WHATSAPP_NUMERO_PUBLICO:-}" ] || ENV_BACK+=("WHATSAPP_NUMERO_PUBLICO=$WHATSAPP_NUMERO_PUBLICO")
+[ -z "${WHATSAPP_PHONE_NUMBER_ID:-}" ] || ENV_BACK+=("WHATSAPP_PHONE_NUMBER_ID=$WHATSAPP_PHONE_NUMBER_ID")
+agregar_secreto() {  # nombre-secreto VARIABLE valor
+  [ -n "$3" ] || return 0
+  SECRETOS+=("$1=$3"); ENV_BACK+=("$2=secretref:$1")
+}
+agregar_secreto demo-clave DEMO_CLAVE "${DEMO_CLAVE:-}"
+agregar_secreto anthropic-api-key ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
+agregar_secreto whatsapp-token WHATSAPP_TOKEN "${WHATSAPP_TOKEN:-}"
+agregar_secreto whatsapp-verify-token WHATSAPP_VERIFY_TOKEN "${WHATSAPP_VERIFY_TOKEN:-}"
+agregar_secreto whatsapp-app-secret WHATSAPP_APP_SECRET "${WHATSAPP_APP_SECRET:-}"
+[ -z "${CLAUDE_MODEL:-}" ] || ENV_BACK+=("CLAUDE_MODEL=$CLAUDE_MODEL")
+if [ -n "${WHATSAPP_TOKEN:-}" ] && [ -n "${WHATSAPP_PHONE_NUMBER_ID:-}" ]; then ENV_BACK+=("NOTIFICADOR=whatsapp"); else ENV_BACK+=("NOTIFICADOR=log"); fi
+
+paso "Backend ($BACK)"
+if az containerapp show -g "$GRUPO" -n "$BACK" -o none 2>/dev/null; then
+  az containerapp secret set -g "$GRUPO" -n "$BACK" --secrets "${SECRETOS[@]}" --only-show-errors -o none
+  az containerapp update -g "$GRUPO" -n "$BACK" --image "$ACR_SERVIDOR/backend:$ETIQUETA" \
+    --min-replicas "${MIN_REPLICAS:-1}" --max-replicas 2 --set-env-vars "${ENV_BACK[@]}" --only-show-errors -o none
+else
+  az containerapp create -g "$GRUPO" -n "$BACK" --environment "$ENTORNO" \
+    --image "$ACR_SERVIDOR/backend:$ETIQUETA" --target-port 8000 --ingress external \
+    --registry-server "$ACR_SERVIDOR" --registry-username "$ACR_USUARIO" --registry-password "$ACR_CLAVE" \
+    --cpu 0.5 --memory 1.0Gi --min-replicas "${MIN_REPLICAS:-1}" --max-replicas 2 \
+    --secrets "${SECRETOS[@]}" --env-vars "${ENV_BACK[@]}" --only-show-errors -o none
+fi
+BACK_URL="https://$(az containerapp show -g "$GRUPO" -n "$BACK" --query properties.configuration.ingress.fqdn -o tsv)"
+
+paso "Imagen del frontend (apunta a $BACK_URL)"
+construir "frontend:$ETIQUETA" ./frontend "BACKEND_URL=$BACK_URL"
+
+paso "Frontend ($FRONT)"
+if az containerapp show -g "$GRUPO" -n "$FRONT" -o none 2>/dev/null; then
+  az containerapp update -g "$GRUPO" -n "$FRONT" --image "$ACR_SERVIDOR/frontend:$ETIQUETA" --only-show-errors -o none
+else
+  az containerapp create -g "$GRUPO" -n "$FRONT" --environment "$ENTORNO" \
+    --image "$ACR_SERVIDOR/frontend:$ETIQUETA" --target-port 3000 --ingress external \
+    --registry-server "$ACR_SERVIDOR" --registry-username "$ACR_USUARIO" --registry-password "$ACR_CLAVE" \
+    --cpu 0.5 --memory 1.0Gi --min-replicas 0 --max-replicas 2 --only-show-errors -o none
+fi
+WEB_URL="https://$(az containerapp show -g "$GRUPO" -n "$FRONT" --query properties.configuration.ingress.fqdn -o tsv)"
+
+paso "Enlaces del bot hacia la web"
+az containerapp update -g "$GRUPO" -n "$BACK" --only-show-errors -o none --set-env-vars \
+  "URL_FORMULARIO_SOLICITUD=$WEB_URL/solicitudes/nueva" "URL_REGISTRO=$WEB_URL/registro"
+
+paso "Comprobación"
+for i in $(seq 1 30); do
+  if curl -fsS "$BACK_URL/health" >/dev/null 2>&1; then break; fi
+  sleep 10
+done
+curl -fsS "$BACK_URL/health" >/dev/null && echo "Backend OK" || echo "El backend aún no responde; revisa: az containerapp logs show -g $GRUPO -n $BACK --tail 50"
+curl -fsS -o /dev/null "$WEB_URL/" && echo "Web OK" || echo "La web aún no responde; revisa: az containerapp logs show -g $GRUPO -n $FRONT --tail 50"
+
+cat <<FIN
+
+Listo.
+  Web:               $WEB_URL
+  API:               $BACK_URL
+  Webhook de Meta:   $BACK_URL/webhook   (token de verificación = WHATSAPP_VERIFY_TOKEN de .env.azure)
+  Usuarios demo:     la clave está en .env.azure (DEMO_CLAVE)
+FIN

@@ -1,5 +1,6 @@
 """Backend de EcoConecta (FastAPI + PostgreSQL)."""
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,6 +19,10 @@ async def ciclo(_app):
     crear_tablas()
     with sesion() as s:
         purgar_vencidos(s)
+    if os.environ.get("SEMBRAR_DEMO", "").strip().lower() in {"1", "true", "si", "sí"}:
+        # Despliegue de demostración (Azure): carga zonas, personal y usuarios demo si faltan.
+        from .seed import cargar
+        cargar()
     yield
 
 
