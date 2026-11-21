@@ -3,8 +3,9 @@ import io
 import json
 import os
 
-os.environ.setdefault("DATABASE_URL", os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+psycopg://eco:eco@localhost:5432/ecoconecta_test"))
+# Las pruebas borran las tablas: TEST_DATABASE_URL manda sobre DATABASE_URL (que en Docker apunta a la base real).
+os.environ["DATABASE_URL"] = (os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+                              or "postgresql+psycopg://eco:eco@localhost:5432/ecoconecta_test")
 os.environ.update({
     "WHATSAPP_APP_SECRET": "secreto-de-prueba",
     "WHATSAPP_VERIFY_TOKEN": "verificar-prueba",
