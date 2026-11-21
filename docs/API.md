@@ -1,7 +1,10 @@
 # API REST de EcoConecta (`/api/v1`)
 
-Sirve al bot de WhatsApp, a una app o a una web. Es también el **contrato** que debe cumplir el backend real
-(ver [`CONTRATO_BACKEND.md`](CONTRATO_BACKEND.md)). Todas las respuestas son JSON; los errores son `{"error": "mensaje"}`.
+> **Legado.** Esta API pertenece al bot original de `chatbot/` (Flask + SQLite) y no se despliega. La API actual está en `backend/app/api/rutas.py` (ver README).
+
+Sirve para conectar cualquier app (móvil) o web con el clasificador de residuos. Es el mismo núcleo
+(`chatbot/core.py`) que usa el bot de WhatsApp, así que **las solicitudes de todos los canales viven en la
+misma tabla** y se consultan con el mismo código `RES-AAAAMMDD-NNNN`.
 
 **Configuración opcional:** `API_KEY` (si se define, enviar cabecera `X-API-Key`), `CORS_ORIGINS` (orígenes web permitidos o `*`),
 `MAX_FOTO_MB` (por defecto 8). Una clave puesta en el JavaScript de una web pública la puede ver cualquiera: desde webs públicas
