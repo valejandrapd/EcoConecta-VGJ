@@ -11,7 +11,7 @@ from sqlalchemy import select, text
 
 from .auth import hash_clave
 from .db import crear_tablas, sesion
-from .models import Contenido, HistorialSolicitud, PersonalCampo, Solicitud, Usuario
+from .models import Contenido, HistorialSolicitud, PersonalCampo, Solicitud, Usuario, Zona
 from .telefono import normalizar
 
 CONTENIDOS = [
@@ -42,6 +42,7 @@ USUARIOS = [
     ("Coord. Reciclaje (demo)", "+573000000004", "coordinador_reciclaje", None, None),
     ("Admin EcoConecta (demo)", "+573000000007", "administrador", None, None),
 ]
+ZONAS = ["Sector 1", "Sector 2", "Sector 3", "Sector 4"]  # ficticias
 ZONA_DEMO = {"Tienda La Esquina (demo)": "Sector 1", "Hogar Pérez (demo)": "Sector 2"}
 
 # Personal de campo sin cuenta: (tipo, nombre, apellido, zona, días, desde, hasta)
@@ -61,6 +62,10 @@ def cargar():
         if s.scalar(select(Contenido.id).limit(1)) is None:
             for tipo, titulo, cuerpo, claves, flujo in CONTENIDOS:
                 s.add(Contenido(tipo=tipo, titulo=titulo, cuerpo=cuerpo, palabras_clave=claves, flujo=flujo))
+        # Zonas ficticias (el administrador las cambia desde la web)
+        if s.scalar(select(Zona.id).limit(1)) is None:
+            s.add_all([Zona(nombre=z) for z in ZONAS])
+            s.flush()
         # Personal de campo (también en bases creadas antes de que existiera)
         if s.scalar(select(PersonalCampo.id).limit(1)) is None:
             for tipo, nombre, apellido, zona, dias, desde, hasta in PERSONAL:

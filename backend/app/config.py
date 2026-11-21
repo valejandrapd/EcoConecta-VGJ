@@ -51,7 +51,6 @@ class Config:
     sesion_horas: int
     # RN-08: solo usuarios marcados como piloto usan los servicios
     modo_piloto: bool
-    zonas: tuple
     # RN-06: regla de puntos parametrizable (valores de ejemplo, NO oficiales de FSD)
     puntos_base: int
     puntos_kg_organico: float
@@ -92,9 +91,6 @@ def config() -> Config:
         auth_secret=os.environ.get("AUTH_SECRET", ""),
         sesion_horas=_int("SESION_HORAS", 12),
         modo_piloto=os.environ.get("MODO_PILOTO", "true").strip().lower() in {"1", "true", "si", "sí"},
-        # Zonas de Villas de San Pablo para asignar recicladores (separadas por coma). Valores de ejemplo.
-        zonas=tuple(z.strip() for z in os.environ.get("ZONAS", "Sector 1,Sector 2,Sector 3,Sector 4").split(",")
-                    if z.strip()),
         puntos_base=_int("PUNTOS_BASE_RECOLECCION", 5),
         puntos_kg_organico=_float("PUNTOS_POR_KG_ORGANICO", 2),
         puntos_kg_reciclable=_float("PUNTOS_POR_KG_RECICLABLE", 3),

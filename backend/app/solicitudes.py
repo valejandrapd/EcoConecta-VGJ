@@ -12,7 +12,7 @@ from sqlalchemy import select
 from .config import config
 from .models import (BONIFICACIONES, COORDINADOR_DE_FLUJO, DIAS_SEMANA, PREFIJO_FLUJO, SEQ_ORG, SEQ_REC, TAMANOS,
                      TIPOS_GENERADOR, DireccionUsuario, HistorialSolicitud, PersonalCampo, Recoleccion, Solicitud,
-                     Usuario)
+                     Usuario, Zona)
 from .notificaciones import obtener_notificador
 
 
@@ -85,8 +85,12 @@ def _validar_detalle(tamano, dias, hora_desde, hora_hasta, bonificacion, direcci
         raise ErrorSolicitud("La etiqueta de la dirección no puede estar vacía")
 
 
-def _validar_zona(zona: str | None):
-    if zona is not None and zona not in config().zonas:
+def zonas_activas(s) -> list[str]:
+    return list(s.scalars(select(Zona.nombre).where(Zona.activa.is_(True)).order_by(Zona.nombre)))
+
+
+def _validar_zona(s, zona: str | None):
+    if zona is not None and zona not in zonas_activas(s):
         raise ErrorSolicitud("Zona desconocida")
 
 
@@ -113,7 +117,7 @@ def crear(s, usuario: Usuario, flujo: str, *, tipo_generador: str | None = None,
     if config().modo_piloto and not usuario.piloto:
         raise SinPermiso("El usuario no está habilitado en el piloto (RN-08)")
     _validar_detalle(tamano, dias, hora_desde, hora_hasta, bonificacion, direccion_etiqueta)
-    _validar_zona(zona)
+    _validar_zona(s, zona)
     propia = (direccion or "").strip()
     direccion = propia or usuario.direccion
     if not direccion:

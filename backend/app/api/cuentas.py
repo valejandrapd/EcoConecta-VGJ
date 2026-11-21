@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from .. import auth, telefono
 from ..config import config
 from ..db import sesion
-from ..models import ROLES, TIPOS_GENERADOR, Contenido, Usuario
+from ..models import ROLES, TIPOS_GENERADOR, Contenido, Usuario, Zona
 from .. import solicitudes as negocio_insignias
 from ..solicitudes import puntos_de
 from .rutas import _actor, actor_id
@@ -50,10 +50,10 @@ def registro(d: Registro):
     tel = telefono.normalizar(d.telefono)
     if not tel or d.tipo_generador not in TIPOS_GENERADOR:
         raise HTTPException(400, "Teléfono o tipo de generador inválido")
-    if d.zona not in config().zonas:
-        raise HTTPException(400, "Elige tu zona")
     try:
         with sesion() as s:
+            if d.zona not in negocio_insignias.zonas_activas(s):
+                raise HTTPException(400, "Elige tu zona")
             u = Usuario(nombre=d.nombre.strip(), telefono=tel, direccion=d.direccion.strip(), zona=d.zona,
                         rol="solicitante",
                         tipo_generador=d.tipo_generador, piloto=not config().modo_piloto,
@@ -139,6 +139,64 @@ def cambiar_usuario(usuario_id: int, d: CambioUsuario, uid: int = Depends(actor_
         if d.activo is not None:
             u.activo = d.activo
         return _perfil(s, u)
+
+
+# --------------------------------------------------------------- zonas (administrador)
+class ZonaIn(BaseModel):
+    nombre: str = Field(min_length=2, max_length=60)
+
+
+class CambioZona(BaseModel):
+    nombre: str | None = Field(None, min_length=2, max_length=60)
+    activa: bool | None = None
+
+
+def _zona(z: Zona) -> dict:
+    return {"id": z.id, "nombre": z.nombre, "activa": z.activa}
+
+
+@router.get("/zonas/todas")
+def todas_las_zonas(uid: int = Depends(actor_id)):
+    with sesion() as s:
+        _exigir_admin(_actor(s, uid))
+        return [_zona(z) for z in s.scalars(select(Zona).order_by(Zona.nombre))]
+
+
+@router.post("/zonas", status_code=201)
+def crear_zona(d: ZonaIn, uid: int = Depends(actor_id)):
+    try:
+        with sesion() as s:
+            _exigir_admin(_actor(s, uid))
+            z = Zona(nombre=d.nombre.strip())
+            s.add(z)
+            s.flush()
+            return _zona(z)
+    except IntegrityError as e:
+        raise HTTPException(409, "Esa zona ya existe") from e
+
+
+@router.patch("/zonas/{zona_id}")
+def cambiar_zona(zona_id: int, d: CambioZona, uid: int = Depends(actor_id)):
+    """Renombrar actualiza también usuarios, direcciones, solicitudes y personal de esa zona."""
+    from sqlalchemy import update
+    from ..models import DireccionUsuario, PersonalCampo, Solicitud
+    try:
+        with sesion() as s:
+            _exigir_admin(_actor(s, uid))
+            z = s.get(Zona, zona_id)
+            if not z:
+                raise HTTPException(404, "No existe")
+            if d.nombre and d.nombre.strip() != z.nombre:
+                viejo, nuevo = z.nombre, d.nombre.strip()
+                for modelo in (Usuario, DireccionUsuario, Solicitud, PersonalCampo):
+                    s.execute(update(modelo).where(modelo.zona == viejo).values(zona=nuevo))
+                z.nombre = nuevo
+            if d.activa is not None:
+                z.activa = d.activa
+            s.flush()
+            return _zona(z)
+    except IntegrityError as e:
+        raise HTTPException(409, "Esa zona ya existe") from e
 
 
 # --------------------------------------------------------------- contenidos (5.2)

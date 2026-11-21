@@ -23,7 +23,7 @@ from app.db import Base, crear_tablas, engine, sesion  # noqa: E402
 from app.main import app  # noqa: E402
 from datetime import date, time, timedelta  # noqa: E402
 
-from app.models import DIAS_SEMANA, PersonalCampo, Usuario  # noqa: E402
+from app.models import DIAS_SEMANA, PersonalCampo, Usuario, Zona  # noqa: E402
 from app.whatsapp import cliente as wa_cliente  # noqa: E402
 from app.whatsapp.firma import firmar  # noqa: E402
 
@@ -68,6 +68,7 @@ def base():
             Usuario(nombre="Coord Rec", telefono="+573000000004", rol="coordinador_reciclaje"),
             Usuario(nombre="Admin", telefono="+573000000007", rol="administrador"),
             Usuario(nombre="Dora Fuera", telefono="+573005550000", direccion="Mz 1", piloto=False),
+            *[Zona(nombre=f"Sector {i}") for i in range(1, 5)],
             # Personal de campo sin cuenta
             PersonalCampo(tipo="reciclador", nombre="Rosa", apellido="Martínez", zona="Sector 1",
                           dias_servicio="lun,mar,mie,jue,vie", hora_desde=time(7), hora_hasta=time(12)),

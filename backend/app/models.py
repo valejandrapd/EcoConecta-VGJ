@@ -53,6 +53,14 @@ class Usuario(Base):
         return FLUJO_DE_ROL.get(self.rol)
 
 
+class Zona(Base):
+    """Zonas del barrio. Las registra el administrador; sirven para asignar recicladores."""
+    __tablename__ = "zonas"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(60), unique=True)
+    activa: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class PersonalCampo(Base):
     """Recicladores y voluntarios de huerta. No inician sesión: la coordinación les avisa por sus
     propios medios y registra todo en la web."""

@@ -66,7 +66,7 @@ docker compose exec -e DEMO_CLAVE=<clave> backend python -m app.seed   # datos F
 - **API interactiva:** `http://localhost:8000/docs`.
 - Las tablas se crean al arrancar el backend.
 
-`app.seed` crea un usuario por perfil, todos ficticios y con la clave `DEMO_CLAVE` (si no la defines, se genera una y se imprime), y cuatro personas de campo sin cuenta: los recicladores Rosa (Sector 1, lun a vie, 7 a 12), Luis (Sector 2, lun, mié, vie y sáb, 8 a 17) y Marta (Sector 2, mar, jue y sáb, 13 a 18), y el voluntario de huerta Carlos. En una base anterior, volver a correrlo agrega el personal y las zonas que falten.
+`app.seed` crea un usuario por perfil, todos ficticios y con la clave `DEMO_CLAVE` (si no la defines, se genera una y se imprime), y cuatro personas de campo sin cuenta: los recicladores Rosa (Sector 1, lun a vie, 7 a 12), Luis (Sector 2, lun, mié, vie y sáb, 8 a 17) y Marta (Sector 2, mar, jue y sáb, 13 a 18), y el voluntario de huerta Carlos, además de cuatro zonas ficticias (Sector 1 a Sector 4) que el administrador puede cambiar en la pestaña *Zonas*. En una base anterior, volver a correrlo agrega el personal y las zonas que falten.
 
 | Perfil | Teléfono |
 |---|---|
@@ -114,7 +114,7 @@ Son 46 pruebas contra PostgreSQL real. Simulan Meta y Claude, así que no necesi
 | Público | Inicio con contenidos educativos filtrables (separación, huerta, horarios y rutas), registro (con consentimiento de datos) e ingreso |
 | Solicitante | Panel con dos insignias animadas (alcancía de tiendas y trinitaria del huerto), el botón **Crear solicitud** y sus solicitudes con estado, persona encargada, fecha y hora, historial, puntos y la opción de cancelar. **Crear solicitud** abre un asistente de un paso por pantalla (`/solicitudes/nueva`) con botones ilustrados: tipo de residuo (debajo, la ayuda por texto que responde "Tu residuo es ORGÁNICO / RECICLABLE" y el botón "Tómale una foto", aún sin función), consejos del material (reciclable: cartón seco, envases limpios y los códigos de plástico 1 a 7; orgánico: sin etiquetas), tamaño (botones uno debajo del otro (pequeño, mediano o grande, con dibujos según el tipo), días disponibles, franja horaria, confirmación de la dirección y su zona (o una nueva con zona y etiqueta, como "Casa mamá", que queda guardada), tipo de bonificación y resumen |
 | Coordinación de huerta o de reciclaje | Botón **Integrar nuevo reciclador / voluntario de huerta** y pestaña con el personal (activar o desactivar). Bandeja de su flujo con pestañas (pendientes, asignadas, programadas, atendidas y canceladas): revisar, **asignar y programar en un paso** (solo recicladores de la zona, y solo los días y horas que cruzan con el usuario; avisa por WhatsApp), registrar la recolección (kg) y cancelar. Incluye los casos derivados por WhatsApp y un resumen por flujo, estado y periodo |
-| Administración | Usuarios (perfil, piloto, activo, alta de personas), contenidos (crear, editar, borrar), todas las solicitudes y los parámetros de puntos |
+| Administración | Usuarios (perfil, piloto, activo, alta de personas), zonas (agregar, renombrar, desactivar), contenidos (crear, editar, borrar), todas las solicitudes y los parámetros de puntos |
 
 El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formulario con el flujo ya elegido.
 
@@ -122,13 +122,13 @@ El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formul
 
 - **Autenticación de la web:** `POST /auth/registro` y `POST /auth/login` devuelven un token, que luego se envía como `Authorization: Bearer <token>`. Las claves se guardan con scrypt y los tokens se firman con HMAC (`AUTH_SECRET`), todo con la librería estándar de Python.
 - **Integraciones internas:** pueden usar `X-Service-Key` junto con `X-Usuario-Id`.
-- **Rutas públicas:** `GET /contenidos`, `GET /parametros` y `GET /zonas`.
+- **Rutas públicas:** `GET /contenidos`, `GET /parametros` y `GET /zonas` (zonas activas).
 
 | Perfil | Rutas |
 |---|---|
 | Solicitante | `POST /solicitudes`, `GET /solicitudes/{codigo}`, `GET /solicitudes/{codigo}/historial`, `GET /mis-solicitudes` (incluye puntos e insignias), `GET /mis-direcciones`, `POST /solicitudes/{codigo}/cancelar` |
 | Coordinador | `GET /bandeja?estado=` (solicitudes de su flujo y casos derivados por WhatsApp), `POST /solicitudes/{codigo}/revisar`, `GET /solicitudes/{codigo}/opciones-asignacion`, `POST /solicitudes/{codigo}/asignar` (con `fecha` y `hora` también programa), `/programar`, `/recoleccion`, `GET /resumen?desde=&hasta=` |
-| Administrador | `GET/POST /usuarios`, `PATCH /usuarios/{id}` (perfil, piloto, activo), `POST/PUT/DELETE /contenidos`, `POST /mantenimiento/purgar-mensajes`, más todo lo anterior |
+| Administrador | `GET/POST /usuarios`, `PATCH /usuarios/{id}` (perfil, piloto, activo), `GET /zonas/todas`, `POST /zonas`, `PATCH /zonas/{id}` (renombrar o desactivar), `POST/PUT/DELETE /contenidos`, `POST /mantenimiento/purgar-mensajes`, más todo lo anterior |
 | Coordinación (personal de campo) | `GET /personal?tipo=`, `POST /personal`, `PATCH /personal/{id}` (activo) |
 | Formulario web | `POST /ia/sugerir` (sugerencia orientativa, no crea nada) |
 

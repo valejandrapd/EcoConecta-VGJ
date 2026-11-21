@@ -86,6 +86,20 @@ def test_solo_cuatro_perfiles_inician_sesion(client):
     assert client.get("/api/zonas").json() == ["Sector 1", "Sector 2", "Sector 3", "Sector 4"]
 
 
+def test_admin_registra_zonas(client):
+    admin, coord = usuario("administrador"), usuario("coordinador_huerta")
+    assert client.post("/api/zonas", headers=h(coord), json={"nombre": "La Ceiba"}).status_code == 403
+    z = client.post("/api/zonas", headers=h(admin), json={"nombre": "La Ceiba"}).json()
+    assert client.post("/api/zonas", headers=h(admin), json={"nombre": "La Ceiba"}).status_code == 409
+    assert "La Ceiba" in client.get("/api/zonas").json()
+    # Renombrar arrastra a quienes ya estaban en esa zona; desactivar la saca de las opciones
+    s1 = next(x for x in client.get("/api/zonas/todas", headers=h(admin)).json() if x["nombre"] == "Sector 1")
+    client.patch(f"/api/zonas/{s1['id']}", headers=h(admin), json={"nombre": "El Bosque"})
+    assert client.get("/api/auth/yo", headers=h(usuario(tel="573001112233"))).json()["zona"] == "El Bosque"
+    client.patch(f"/api/zonas/{z['id']}", headers=h(admin), json={"activa": False})
+    assert "La Ceiba" not in client.get("/api/zonas").json()
+
+
 def test_parametros_publicos(client):
     p = client.get("/api/parametros").json()
     assert p["puntos"]["base_por_recoleccion"] == 5 and "validación" in p["puntos"]["nota"]

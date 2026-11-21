@@ -9,14 +9,61 @@ export default function Administrador({ yo }) {
   return (
     <>
       <div className="pestanas">
-        {[["usuarios", "Usuarios y piloto"], ["contenidos", "Contenidos"], ["solicitudes", "Solicitudes"], ["parametros", "Parámetros"]].map(([v, t]) => (
+        {[["usuarios", "Usuarios y piloto"], ["zonas", "Zonas"], ["contenidos", "Contenidos"], ["solicitudes", "Solicitudes"], ["parametros", "Parámetros"]].map(([v, t]) => (
           <button key={v} className={vista === v ? "activa" : ""} onClick={() => setVista(v)}>{t}</button>
         ))}
       </div>
       {vista === "usuarios" && <Usuarios />}
+      {vista === "zonas" && <Zonas />}
       {vista === "contenidos" && <Contenidos />}
       {vista === "solicitudes" && <Coordinador yo={yo} />}
       {vista === "parametros" && <Parametros />}
+    </>
+  );
+}
+
+function Zonas() {
+  const [lista, setLista] = useState(null);
+  const [nombre, setNombre] = useState("");
+  const [editando, setEditando] = useState({});
+  const cargar = () => api("/zonas/todas").then(setLista);
+  useEffect(() => { cargar(); }, []);
+  return (
+    <>
+      <h2>Zonas</h2>
+      <p className="suave">Se usan en el registro de usuarios y para asignar recicladores de la misma zona. Al renombrar una zona, se actualizan los usuarios, solicitudes y recicladores que ya estaban en ella.</p>
+      <div className="tarjeta fila">
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la zona, p. ej. Sector 5" aria-label="Nueva zona" style={{ flex: "3 1 200px" }} />
+        <Boton disabled={nombre.trim().length < 2} accion={() => api("/zonas", { metodo: "POST", cuerpo: { nombre } })} alTerminar={() => { setNombre(""); cargar(); }}>Agregar zona</Boton>
+      </div>
+      <div className="tabla tarjeta">
+        <table>
+          <thead><tr><th>Zona</th><th>Activa</th><th></th></tr></thead>
+          <tbody>
+            {(lista || []).map((z) => (
+              <tr key={z.id} style={{ opacity: z.activa ? 1 : 0.55 }}>
+                <td>
+                  {editando[z.id] !== undefined ? (
+                    <input value={editando[z.id]} onChange={(e) => setEditando({ ...editando, [z.id]: e.target.value })} aria-label={`Nuevo nombre de ${z.nombre}`} />
+                  ) : z.nombre}
+                </td>
+                <td>
+                  <input type="checkbox" style={{ width: "auto" }} checked={z.activa} aria-label={`Activa: ${z.nombre}`}
+                    onChange={() => api(`/zonas/${z.id}`, { metodo: "PATCH", cuerpo: { activa: !z.activa } }).then(cargar)} />
+                </td>
+                <td>
+                  {editando[z.id] !== undefined ? (
+                    <Boton accion={() => api(`/zonas/${z.id}`, { metodo: "PATCH", cuerpo: { nombre: editando[z.id] } })}
+                      alTerminar={() => { const { [z.id]: _, ...resto } = editando; setEditando(resto); cargar(); }}>Guardar</Boton>
+                  ) : (
+                    <button className="secundario" onClick={() => setEditando({ ...editando, [z.id]: z.nombre })}>Renombrar</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

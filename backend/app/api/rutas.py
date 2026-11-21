@@ -263,10 +263,10 @@ class NuevoPersonal(BaseModel):
     hora_hasta: time
 
 
-def _validar_personal(d: NuevoPersonal):
+def _validar_personal(s, d: NuevoPersonal):
     if d.tipo not in TIPOS_PERSONAL:
         raise HTTPException(400, "tipo debe ser 'reciclador' o 'voluntario_huerta'")
-    if d.tipo == "reciclador" and d.zona not in config().zonas:
+    if d.tipo == "reciclador" and d.zona not in negocio.zonas_activas(s):
         raise HTTPException(400, "Elige la zona del reciclador")
     if any(x not in DIAS_SEMANA for x in d.dias):
         raise HTTPException(400, "Día inválido")
@@ -287,10 +287,10 @@ def listar_personal(tipo: str | None = None, uid: int = Depends(actor_id)):
 @router.post("/personal", status_code=201)
 def crear_personal(d: NuevoPersonal, uid: int = Depends(actor_id)):
     """Integrar un reciclador (con zona) o un voluntario de huerta. No reciben usuario ni clave."""
-    _validar_personal(d)
     with sesion() as s:
         actor = _actor(s, uid)
         _exigir_coordinacion(actor)
+        _validar_personal(s, d)
         p = PersonalCampo(tipo=d.tipo, nombre=d.nombre.strip(), apellido=d.apellido.strip(),
                           zona=d.zona if d.tipo == "reciclador" else None,
                           dias_servicio=",".join(x for x in DIAS_SEMANA if x in d.dias),
@@ -317,7 +317,9 @@ def cambiar_personal(personal_id: int, d: CambioPersonal, uid: int = Depends(act
 
 @router.get("/zonas")
 def zonas():
-    return list(config().zonas)
+    """Zonas activas (públicas: se usan en el registro)."""
+    with sesion() as s:
+        return negocio.zonas_activas(s)
 
 
 @router.get("/resumen")

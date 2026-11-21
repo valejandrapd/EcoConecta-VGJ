@@ -61,6 +61,7 @@ erDiagram
 | Tabla | Uso |
 |---|---|
 | `usuarios` | Solo los 4 perfiles con acceso (`rol`), `telefono` E.164 único, `direccion`, `zona`, `tipo_generador`, `piloto` (RN-08), `clave_hash` (scrypt) |
+| `zonas` | Zonas del barrio, registradas por el administrador (`nombre` único, `activa`) |
 | `personal_campo` | Recicladores (con `zona`) y voluntarios de huerta, sin cuenta: `nombre`, `apellido`, `dias_servicio`, `hora_desde`, `hora_hasta`, `activo` |
 | `direcciones_usuario` | Direcciones extra del usuario con `etiqueta` ("Casa mamá") y `zona` |
 | `solicitudes` | `codigo` ORG-/REC-, `flujo` (RN-01), `tipo_generador`, `estado`, `direccion`, `disponibilidad`, `observaciones`, `zona`, `tamano`, `dias_disponibles`, `hora_desde`/`hora_hasta`, `bonificacion`, `coordinador_id` y `reciclador_id` (RN-03), `fecha_programada` y `hora_programada` (RN-02) |
