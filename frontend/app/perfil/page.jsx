@@ -104,7 +104,7 @@ export default function Perfil() {
         <button>Cambiar clave</button>
       </form>
 
-      <p><button className="secundario" onClick={() => { cerrarSesion(); window.location.href = "/"; }}>🚪 Salir</button></p>
+      <p className="centrado"><button className="secundario" onClick={() => { cerrarSesion(); window.location.href = "/"; }}>🚪 Salir</button></p>
     </div>
   );
 }

@@ -41,14 +41,14 @@ export default function Solicitante({ yo }) {
 function Cancelar({ s, alTerminar }) {
   const [seguro, setSeguro] = useState(false);
   const [error, setError] = useState("");
-  if (!seguro) return <p><button className="secundario" onClick={() => setSeguro(true)}>Cancelar solicitud</button></p>;
+  if (!seguro) return <p className="centrado"><button className="cancelar" onClick={() => setSeguro(true)}>Cancelar solicitud</button></p>;
   return (
-    <div className="fila">
+    <div className="fila" style={{ justifyContent: "center" }}>
       <span style={{ flex: "1 1 100%" }}>¿Seguro que quieres cancelar {s.codigo}?</span>
       <button onClick={async () => {
         try { await api(`/solicitudes/${s.codigo}/cancelar`, { metodo: "POST", cuerpo: { motivo: "Cancelada por el usuario" } }); alTerminar(); }
         catch (e) { setError(e.message); }
-      }}>Sí, cancelar</button>
+      }} className="cancelar">Sí, cancelar</button>
       <button className="secundario" onClick={() => setSeguro(false)}>No</button>
       {error && <p className="error">{error}</p>}
     </div>

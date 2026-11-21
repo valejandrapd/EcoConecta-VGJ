@@ -96,6 +96,14 @@ textarea { min-height: 72px; }
 button, .boton { display: inline-block; font-family: var(--font-body); padding: 12px 18px; font-size: 1rem; font-weight: 600; border: 2px solid var(--primario); border-radius: 14px; background: var(--primario); color: var(--primario-texto); cursor: pointer; text-decoration: none; text-align: center; box-shadow: 0 4px 0 var(--eco-forest); transition: transform .08s, box-shadow .08s; }
 button:active:not(:disabled), .boton:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--eco-forest); }
 button.secundario, .boton.secundario { background: var(--superficie); color: var(--titulo); border-color: var(--boton2-borde); box-shadow: 0 3px 0 var(--borde); }
+/* Cancelar: sin relleno, solo el contorno y la sombra inferior en rojo de alerta */
+button.cancelar { background: transparent; color: var(--alerta); border-color: var(--alerta); box-shadow: 0 3px 0 var(--alerta); }
+button.cancelar:active:not(:disabled) { box-shadow: 0 1px 0 var(--alerta); }
+/* Ver historial: enlace discreto, centrado, sin caja y en gris translúcido */
+.centrado { text-align: center; }
+button.enlace-suave { background: transparent; border: 0; box-shadow: none; color: var(--suave); opacity: .6; font-weight: 500; padding: 6px 8px; text-decoration: underline; }
+button.enlace-suave:hover { opacity: 1; }
+button.enlace-suave:active:not(:disabled) { transform: none; box-shadow: none; }
 button:disabled { opacity: .55; cursor: default; }
 button:focus-visible, .boton:focus-visible, .opcion:focus-visible { outline: 3px solid var(--eco-yellow); outline-offset: 2px; }
 .fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -327,6 +335,14 @@ h1, h2, h3, p, td, dd, summary { overflow-wrap: anywhere; }
 }
 .envoltura-boton { flex: 0 0 auto; }
 .envoltura-boton .error { display: block; margin-top: 6px; }
+/* Filas que solo tienen botones: centradas y, en celular, repartidas en partes iguales */
+.fila:is(:has(> button), :has(> .envoltura-boton)):not(:has(> input, > select, > textarea)) { justify-content: center; }
+@media (min-width: 601px) {
+  .fila:not(:has(> input, > select, > textarea)) > button { flex: 0 1 auto; min-width: 140px; }
+}
+@media (max-width: 600px) {
+  .fila:not(:has(> input, > select, > textarea)) > .envoltura-boton { flex: 1 1 120px; }
+}
 @media (max-width: 600px) {
   .fila > .envoltura-boton { flex: 1 1 100%; }
   .envoltura-boton button { width: 100%; }
