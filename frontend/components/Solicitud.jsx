@@ -35,7 +35,7 @@ export default function Solicitud({ s, children }) {
       )}
       {s.puntos != null && <p className="ok">+{s.puntos} puntos</p>}
       {children}
-      <p><button className="secundario" onClick={verHistorial}>{historial ? "Ocultar historial" : "Ver historial"}</button></p>
+      <p className="centrado"><button className="enlace-suave" onClick={verHistorial}>{historial ? "Ocultar historial" : "Ver historial"}</button></p>
       {historial && (
         <ol className="suave">
           {historial.map((h, i) => (

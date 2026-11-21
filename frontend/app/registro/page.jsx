@@ -51,7 +51,7 @@ export default function Registro() {
         Acepto que mi teléfono y dirección se usen solo para coordinar la recolección. Solo los verá quien atienda mi solicitud.
       </label>
       {error && <p className="error">{error}</p>}
-      <p><button disabled={enviando}>{enviando ? "Registrando…" : "Crear cuenta"}</button></p>
+      <p className="centrado"><button disabled={enviando}>{enviando ? "Registrando…" : "Crear cuenta"}</button></p>
       <p className="suave">Tu cuenta queda en espera hasta que la coordinación la habilite en el piloto.</p>
     </form>
   );

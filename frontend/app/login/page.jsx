@@ -26,12 +26,12 @@ export default function Login() {
   return (
     <form className="tarjeta" onSubmit={entrar} style={{ maxWidth: 420, margin: "0 auto" }}>
       <h1>Ingresar</h1>
-      <label htmlFor="tel">Teléfono (WhatsApp)</label>
+      <label htmlFor="tel">Número de teléfono</label>
       <input id="tel" inputMode="tel" autoComplete="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} required />
-      <label htmlFor="clave">Clave</label>
+      <label htmlFor="clave">Contraseña</label>
       <input id="clave" type="password" autoComplete="current-password" value={clave} onChange={(e) => setClave(e.target.value)} required />
       {error && <p className="error">{error}</p>}
-      <p><button disabled={enviando}>{enviando ? "Ingresando…" : "Ingresar"}</button></p>
+      <p className="centrado"><button disabled={enviando}>{enviando ? "Ingresando…" : "Ingresar"}</button></p>
       <p className="suave">¿No tienes cuenta? <a href="/registro">Regístrate</a></p>
     </form>
   );

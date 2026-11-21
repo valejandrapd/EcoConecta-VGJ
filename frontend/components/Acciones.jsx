@@ -35,7 +35,7 @@ export function Asignar({ s, alTerminar }) {
   }, [s.codigo, abierto]);
 
   if (!abierto) {
-    return <p><button className="secundario" onClick={() => setAbierto(true)}>📅 Cambiar fecha</button></p>;
+    return <p className="centrado"><button className="secundario" onClick={() => setAbierto(true)}>📅 Cambiar fecha</button></p>;
   }
 
   if (error) return <p className="error">{error}</p>;

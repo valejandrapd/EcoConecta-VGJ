@@ -5,12 +5,13 @@ también se acepta `X-Service-Key` (SERVICE_API_KEY) + `X-Usuario-Id`. Cada ruta
 (sección 5.1 del reto).
 """
 import hmac
-from datetime import date, datetime, time, timezone
+from collections import Counter, defaultdict
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from .. import auth
 from .. import solicitudes as negocio
@@ -20,7 +21,7 @@ from ..db import sesion
 from ..ia import cascada
 from ..ia.modelo import IANoDisponible
 from ..models import (COORDINADOR_DE_FLUJO, DIAS_SEMANA, FLUJO_DE_ROL, PERSONAL_DE_COORDINADOR, ROLES, TIPOS_PERSONAL, CasoCoordinacion,
-                      DireccionUsuario, HistorialSolicitud, PersonalCampo, Solicitud, Usuario)
+                      DireccionUsuario, HistorialSolicitud, PersonalCampo, Recoleccion, Solicitud, Usuario)
 from ..whatsapp.mensajeria import purgar_vencidos
 
 
@@ -356,6 +357,110 @@ def resumen(desde: date | None = None, hasta: date | None = None, uid: int = Dep
         if hasta:
             q = q.where(Solicitud.creada_en <= datetime.combine(hasta, time.max, timezone.utc))
         return [{"flujo": f, "estado": e, "total": n} for f, e, n in s.execute(q)]
+
+
+# --------------------------------------------------------------- mapa de zonas y agenda del reciclador
+_DIAS_ES = ("lun", "mar", "mie", "jue", "vie", "sab", "dom")
+_BOGOTA = timezone(timedelta(hours=-5))  # Colombia no tiene horario de verano
+
+
+def _alcance_flujo(actor: Usuario) -> str | None:
+    """RN-01: cada coordinación ve su colectivo; el administrador ve todos."""
+    return None if actor.rol == "administrador" else FLUJO_DE_ROL[actor.rol]
+
+
+def _metricas_zona(sols: list[Solicitud], kg: dict, d30: datetime) -> dict:
+    """Indicadores de una zona con las solicitudes de los últimos 90 días y los kilos del último mes."""
+    en30 = [x for x in sols if x.creada_en >= d30]
+    por_usuario = defaultdict(list)
+    for x in sols:
+        por_usuario[x.usuario_id].append(x.creada_en)
+    intervalos = []
+    for fechas in por_usuario.values():
+        fechas.sort()
+        intervalos += [(b - a).total_seconds() / 86400 for a, b in zip(fechas, fechas[1:])]
+    hechas = [x for x in sols if x.estado == "recolectada" and x.recoleccion]
+    tiempos = [(x.recoleccion.registrada_en - x.creada_en).total_seconds() / 3600 for x in hechas]
+    atendibles = [x for x in sols if x.estado != "cancelada"]
+    dias = Counter(_DIAS_ES[x.creada_en.astimezone(_BOGOTA).weekday()] for x in sols)
+    kilos = {f: round(kg.get(f, 0.0), 1) for f in ("organico", "reciclable")}
+    kilos["total"] = round(kilos["organico"] + kilos["reciclable"], 1)
+    por_flujo = Counter(x.flujo for x in en30)
+    if kilos["total"] > 0:
+        principal = max(("organico", "reciclable"), key=lambda f: kilos[f])
+    else:
+        principal = por_flujo.most_common(1)[0][0] if por_flujo else None
+    return {
+        "solicitudes_30d": len(en30),
+        "por_semana": round(len(en30) / (30 / 7), 1),
+        "usuarios_30d": len({x.usuario_id for x in en30}),
+        "intervalo_dias": round(sum(intervalos) / len(intervalos), 1) if intervalos else None,
+        "dia_pico": dias.most_common(1)[0][0] if dias else None,
+        "canceladas_30d": sum(1 for x in en30 if x.estado == "cancelada"),
+        "tasa_atencion": round(100 * len(hechas) / len(atendibles)) if atendibles else None,
+        "horas_atencion": round(sum(tiempos) / len(tiempos), 1) if tiempos else None,
+        "kilos_30d": kilos,
+        "por_flujo_30d": {"organico": por_flujo.get("organico", 0), "reciclable": por_flujo.get("reciclable", 0)},
+        "material_principal": principal,
+    }
+
+
+@router.get("/mapa/zonas")
+def mapa_zonas(uid: int = Depends(actor_id)):
+    """Recicladores y métricas de cada zona activa. Las solicitudes de la zona salen de /bandeja."""
+    with sesion() as s:
+        actor = _actor(s, uid)
+        _exigir_coordinacion(actor)
+        flujo = _alcance_flujo(actor)
+        ahora_ = datetime.now(timezone.utc)
+        d30, d90 = ahora_ - timedelta(days=30), ahora_ - timedelta(days=90)
+        q = select(Solicitud).where(Solicitud.creada_en >= d90, Solicitud.zona.is_not(None))
+        qk = (select(Solicitud.zona, Solicitud.flujo, func.sum(Recoleccion.cantidad_kg))
+              .join(Solicitud, Recoleccion.solicitud_id == Solicitud.id)
+              .where(Recoleccion.registrada_en >= d30).group_by(Solicitud.zona, Solicitud.flujo))
+        qa = (select(Solicitud.reciclador_id, func.count()).where(
+            Solicitud.estado.in_(("asignada", "programada")), Solicitud.reciclador_id.is_not(None))
+            .group_by(Solicitud.reciclador_id))
+        if flujo:
+            q, qk, qa = (x.where(Solicitud.flujo == flujo) for x in (q, qk, qa))
+        sols = defaultdict(list)
+        for x in s.scalars(q):
+            sols[x.zona].append(x)
+        kg = defaultdict(dict)
+        for z, f, k in s.execute(qk):
+            kg[z][f] = float(k or 0)
+        asignadas = dict(s.execute(qa).all())
+        recs = s.scalars(select(PersonalCampo).where(PersonalCampo.tipo == "reciclador", PersonalCampo.activo.is_(True))
+                         .order_by(PersonalCampo.nombre)).all()
+        return {"zonas": [
+            {"nombre": z,
+             "recicladores": [{**_personal(r), "nombre_completo": r.nombre_completo, "asignadas": asignadas.get(r.id, 0)}
+                              for r in recs if r.zona == z],
+             "metricas": _metricas_zona(sols.get(z, []), kg.get(z, {}), d30)}
+            for z in negocio.zonas_activas(s)]}
+
+
+@router.get("/personal/{personal_id}/agenda")
+def agenda_reciclador(personal_id: int, uid: int = Depends(actor_id)):
+    """Ficha de un reciclador: horario normal y solicitudes designadas (más las recolectadas esta semana)."""
+    with sesion() as s:
+        actor = _actor(s, uid)
+        _exigir_coordinacion(actor)
+        p = s.get(PersonalCampo, personal_id)
+        if not p or p.tipo != "reciclador":
+            raise HTTPException(404, "No existe")
+        hoy = datetime.now(_BOGOTA).date()
+        lunes = hoy - timedelta(days=hoy.weekday())
+        q = select(Solicitud).where(
+            Solicitud.reciclador_id == p.id,
+            or_(Solicitud.estado.in_(("asignada", "programada")),
+                (Solicitud.estado == "recolectada") & (Solicitud.fecha_programada >= lunes)))
+        flujo = _alcance_flujo(actor)
+        if flujo:
+            q = q.where(Solicitud.flujo == flujo)
+        sols = s.scalars(q.order_by(Solicitud.fecha_programada.asc().nulls_last(), Solicitud.hora_programada)).all()
+        return {"reciclador": {**_personal(p), "nombre_completo": p.nombre_completo}, "hoy": hoy, "lunes": lunes,
+                "solicitudes": [_sol(x, actor) for x in sols]}
 
 
 # --------------------------------------------------------------- IA y mantenimiento

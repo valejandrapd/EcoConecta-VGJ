@@ -39,7 +39,13 @@ export default function Layout({ children }) {
           </a>
         </header>
         <main className="contenedor">{children}</main>
-        <footer className="pie">Villas de San Pablo · Barranquilla · Datos de demostración ficticios</footer>
+        <footer className="pie">
+          <div className="pie-marcas">
+            <img src="/villas-de-san-pablo-logo.png" alt="Villas de San Pablo" width="54" height="61" />
+            <img src="/fundacion-santo-domingo-logo.png" alt="Fundación Santo Domingo" width="69" height="61" />
+          </div>
+          <p>Villas de San Pablo · Barranquilla · Datos de demostración ficticios</p>
+        </footer>
       </body>
     </html>
   );

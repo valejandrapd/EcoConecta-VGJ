@@ -37,6 +37,7 @@ export default function Menu() {
   const [abierto, setAbierto] = useState(false);
   const [tema, setTema] = useState("auto");
   const [conSesion, setConSesion] = useState(false);
+  const [rol, setRol] = useState(null);
   const [ruta, setRuta] = useState("");
   const [whatsapp, setWhatsapp] = useState(null);
   const [verWhatsapp, setVerWhatsapp] = useState(false);
@@ -44,13 +45,15 @@ export default function Menu() {
   useEffect(() => {
     try { setTema(localStorage.getItem(CLAVE_TEMA) || "auto"); } catch {}
     setConSesion(!!sesion()?.token);
-    setRuta(window.location.pathname);
+    setRol(sesion()?.usuario?.rol || null);
+    setRuta(window.location.pathname + window.location.search);
     api("/contacto").then((c) => setWhatsapp(c.whatsapp || "")).catch(() => setWhatsapp(""));
   }, []);
 
   useEffect(() => {
     if (!abierto) return;
     setConSesion(!!sesion()?.token);
+    setRol(sesion()?.usuario?.rol || null);
     const tecla = (e) => e.key === "Escape" && setAbierto(false);
     window.addEventListener("keydown", tecla);
     document.body.style.overflow = "hidden";
@@ -84,6 +87,18 @@ export default function Menu() {
             <nav>
               {enlace("/", "🏠", "Inicio y aprende")}
               {enlace("/panel", "📋", "Mi panel")}
+              {conSesion && rol?.startsWith("coordinador_") && (
+                <>
+                  <p className="cajon-seccion">Bandeja de la coordinación</p>
+                  {enlace("/panel?vista=atendidas", "✅", "Atendidas")}
+                  {enlace("/panel?vista=canceladas", "✖️", "Canceladas")}
+                  {enlace("/panel?vista=casos", "💬", "Casos de WhatsApp")}
+                  {enlace("/panel?vista=personal", rol === "coordinador_reciclaje" ? "♻️" : "🌱", rol === "coordinador_reciclaje" ? "Recicladores" : "Voluntarios de huerta")}
+                  {enlace("/panel?vista=resumen", "📊", "Resumen")}
+                  {enlace("/panel?vista=integrar", "➕", rol === "coordinador_reciclaje" ? "Integrar nuevo reciclador" : "Integrar nuevo voluntario de huerta")}
+                  <hr />
+                </>
+              )}
               {conSesion && enlace("/perfil", "👤", "Mi perfil")}
               {enlace("/tutorial", "🧭", "Tutorial")}
               {enlace("/ayuda", "❓", "Ayuda")}

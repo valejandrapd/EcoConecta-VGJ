@@ -141,9 +141,9 @@ function Contenidos() {
         <label>Título</label><input value={edicion.titulo} onChange={(e) => setEdicion({ ...edicion, titulo: e.target.value })} />
         <label>Contenido</label><textarea value={edicion.cuerpo} onChange={(e) => setEdicion({ ...edicion, cuerpo: e.target.value })} />
         <label>Palabras clave para el bot (separadas por coma)</label><input value={edicion.palabras_clave} onChange={(e) => setEdicion({ ...edicion, palabras_clave: e.target.value })} />
-        <div className="fila" style={{ marginTop: 12 }}>
+        <div className="fila" style={{ marginTop: 12, justifyContent: "center" }}>
           <Boton disabled={edicion.titulo.length < 3 || edicion.cuerpo.length < 3} accion={guardar} alTerminar={() => { setEdicion(vacio); cargar(); }}>Guardar</Boton>
-          {edicion.id && <button className="secundario" style={{ flex: "0 0 auto" }} onClick={() => setEdicion(vacio)}>Cancelar edición</button>}
+          {edicion.id && <button className="cancelar" style={{ flex: "0 0 auto" }} onClick={() => setEdicion(vacio)}>Cancelar edición</button>}
         </div>
       </div>
       <h2>Publicados</h2>
@@ -152,7 +152,7 @@ function Contenidos() {
           <b>{c.titulo}</b> <span className="suave">({c.tipo})</span>
           <p>{c.cuerpo}</p>
           <div className="fila">
-            <button className="secundario" style={{ flex: "0 0 auto" }} onClick={() => setEdicion(c)}>Editar</button>
+            <button className="secundario" onClick={() => setEdicion(c)}>Editar</button>
             <Boton secundario accion={() => api(`/contenidos/${c.id}`, { metodo: "DELETE" })} alTerminar={cargar}>Borrar</Boton>
           </div>
         </article>

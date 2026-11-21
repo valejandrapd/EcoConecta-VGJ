@@ -101,9 +101,9 @@ export function IntegrarPersonal({ yo, alTerminar, alCancelar }) {
         </>
       )}
       {error && <p className="error">{error}</p>}
-      <div className="fila" style={{ marginTop: 16 }}>
+      <div className="fila" style={{ marginTop: 16, justifyContent: "center" }}>
         <button disabled={!completo || enviando}>{enviando ? "Guardando…" : "Integrar"}</button>
-        <button type="button" className="secundario" onClick={alCancelar}>Cancelar</button>
+        <button type="button" className="cancelar" onClick={alCancelar}>Cancelar</button>
       </div>
     </form>
   );
