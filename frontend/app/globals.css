@@ -74,7 +74,7 @@ h3 { font-size: 1.05rem; font-weight: 600; margin: 8px 0; }
 a { color: var(--enlace); }
 
 /* Barra superior blanca: el logo (fondo transparente) queda integrado y centrado. */
-.barra { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 6px 16px; background: #fff; border-bottom: 3px solid var(--eco-green); box-shadow: 0 2px 8px rgba(6, 59, 46, .06); }
+.barra { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 6px 16px; background: #fff; border-bottom: 3px solid var(--eco-green); box-shadow: 0 5px 0 var(--eco-yellow); }
 .marca { display: block; justify-self: center; }
 .marca img { width: 220px; height: auto; display: block; }
 .barra .enlace { color: var(--eco-forest); text-decoration: none; font-weight: 600; padding: 8px 10px; border-radius: 10px; font-size: .95rem; }
@@ -83,7 +83,28 @@ a { color: var(--enlace); }
 .barra .der { justify-self: end; }
 @media (min-width: 640px) { .barra { position: sticky; top: 0; z-index: 5; } .marca img { width: 260px; } }
 .contenedor { max-width: 960px; margin: 0 auto; padding: 16px; }
-.pie { text-align: center; color: var(--suave); font-size: .85rem; padding: 24px 16px; }
+/* Pie oscuro con franja amarilla, como la sección oscura de villasdesanpablo.com */
+.pie { text-align: center; background: var(--eco-forest); color: #DCE8E1; border-top: 5px solid var(--eco-yellow); font-size: .85rem; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); margin-top: 24px; }
+.pie p { margin: 10px 0 0; }
+.pie-marcas { display: flex; justify-content: center; align-items: center; gap: 24px; }
+.pie-marcas img { height: 76px; width: auto; }
+
+/* Portada de inicio: franja amarilla arriba y la mariposa monarca de la marca */
+.portada { position: relative; overflow: hidden; border-top: 6px solid var(--eco-yellow); }
+.portada > :not(.portada-mariposa) { position: relative; }
+.portada-mariposa { position: absolute; right: 14px; top: 10px; width: 110px; height: auto; opacity: .95; transform: rotate(8deg); pointer-events: none; }
+@media (min-width: 700px) { .tarjeta.portada { padding-right: 190px; } .portada-mariposa { width: 130px; right: 28px; top: 18px; } }
+@media (max-width: 699px) { .portada h1 { padding-right: 90px; } .portada-mariposa { width: 76px; } }
+
+/* Mosaicos de categorías (estilo villasdesanpablo.com): cuadro redondeado de color con ícono y nombre */
+.categorias { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+@media (min-width: 700px) { .categorias { grid-template-columns: repeat(6, 1fr); gap: 12px; } }
+.categoria { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 92px; padding: 12px 6px; border: 3px solid transparent; border-radius: 18px; background: var(--cat-fondo); color: var(--cat-texto); font-weight: 600; font-size: .95rem; box-shadow: 0 3px 0 rgba(6, 59, 46, .25); position: relative; }
+.categoria svg { width: 34px; height: 34px; }
+.categoria.activa { border-color: var(--eco-forest); box-shadow: 0 0 0 3px var(--superficie), 0 0 0 6px var(--eco-forest); }
+.categoria.activa::after { content: "✓"; position: absolute; top: 4px; right: 8px; font-size: .85rem; font-weight: 700; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .categoria.activa { border-color: #fff; box-shadow: 0 0 0 3px var(--fondo), 0 0 0 6px #fff; } }
+:root[data-theme="dark"] .categoria.activa { border-color: #fff; box-shadow: 0 0 0 3px var(--fondo), 0 0 0 6px #fff; }
 
 .tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 16px; margin-bottom: 12px; }
 .rejilla { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }

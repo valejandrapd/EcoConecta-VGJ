@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import Categorias from "../components/Categorias";
+import Mariposa from "../components/Mariposa";
 
 const TIPOS = { tutorial: "Separación", huerta: "La huerta", horario: "Horarios", ruta: "Rutas", general: "General" };
 
@@ -16,7 +18,8 @@ export default function Inicio() {
   const lista = (contenidos || []).filter((c) => filtro === "todos" || c.tipo === filtro);
   return (
     <>
-      <section className="tarjeta">
+      <section className="tarjeta portada">
+        <Mariposa className="portada-mariposa" />
         <h1>Separa, solicita y gana puntos</h1>
         <p>
           EcoConecta conecta a hogares y negocios de Villas de San Pablo con los <b>recicladores</b> de tu
@@ -30,13 +33,7 @@ export default function Inicio() {
       </section>
 
       <h2>Aprende sobre residuos</h2>
-      <div className="pestanas">
-        {["todos", ...Object.keys(TIPOS)].map((t) => (
-          <button key={t} className={filtro === t ? "activa" : ""} onClick={() => setFiltro(t)}>
-            {t === "todos" ? "Todo" : TIPOS[t]}
-          </button>
-        ))}
-      </div>
+      <Categorias tipos={TIPOS} valor={filtro} onCambio={setFiltro} />
       {error && <p className="error">{error}</p>}
       {contenidos === null && !error && <p className="suave">Cargando…</p>}
       {contenidos && lista.length === 0 && <p className="suave">Aún no hay contenidos en esta sección.</p>}
