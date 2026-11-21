@@ -12,7 +12,7 @@ PALABRAS = {
         "banano", "platano", "naranja", "manzana", "papa", "yuca", "tomate", "cebolla",
         "zanahoria", "lechuga", "aguacate", "limon", "mango", "piña", "sandia",
         "comida", "sobras", "restos de comida", "huevo", "cascara de huevo",
-        "cafe", "borra de cafe", "bolsa de te", "te", "hojas", "hojas secas", "ramas",
+        "cafe", "borra de cafe", "bolsa de te", "hojas", "hojas secas", "ramas",
         "cesped", "poda", "flores", "semillas", "pan", "arroz", "pasta", "carne",
         "hueso", "huesos", "pescado", "pollo", "servilleta usada",
     ],

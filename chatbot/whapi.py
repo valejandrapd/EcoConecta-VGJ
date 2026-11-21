@@ -1,32 +1,40 @@
-"""Cliente mínimo de Whapi.Cloud: enviar texto y descargar imágenes."""
+"""Cliente mínimo de Whapi.Cloud (solo librería estándar): enviar texto y descargar imágenes y audios."""
+import json
 import os
-
-import requests
+import urllib.request
 
 BASE = "https://gate.whapi.cloud"
 
 
-def _headers():
-    return {
-        "Authorization": "Bearer " + os.environ["WHAPI_TOKEN"],
-        "Accept": "application/json",
-        "User-Agent": "ecoconecta-chatbot/1.0",
-    }
+def _pedir(url, datos=None, con_token=True):
+    # User-Agent propio: Cloudflare (Whapi) bloquea el de urllib por defecto.
+    cab = {"Accept": "application/json", "User-Agent": "ecoconecta-chatbot/1.0"}
+    if con_token:
+        cab["Authorization"] = "Bearer " + os.environ["WHAPI_TOKEN"]
+    cuerpo = None
+    if datos is not None:
+        cuerpo = json.dumps(datos).encode()
+        cab["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=cuerpo, headers=cab)
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read()
 
 
 def enviar_texto(destino: str, texto: str):
-    r = requests.post(f"{BASE}/messages/text", json={"to": destino, "body": texto},
-                      headers=_headers(), timeout=30)
-    r.raise_for_status()
-    return r.json()
+    return json.loads(_pedir(f"{BASE}/messages/text", {"to": destino, "body": texto}) or b"{}")
+
+
+def descargar_media(bloque: dict, mime_defecto="image/jpeg"):
+    """Recibe el bloque `image`, `voice` o `audio` del webhook y devuelve (bytes, mime)."""
+    mime = bloque.get("mime_type", mime_defecto).split(";")[0]
+    if bloque.get("link"):  # con "Auto Download" activo en el panel de Whapi
+        return _pedir(bloque["link"], con_token=False), mime
+    return _pedir(f"{BASE}/media/{bloque['id']}"), mime
 
 
 def descargar_imagen(imagen: dict):
-    """Recibe el bloque `image` del webhook y devuelve (bytes, mime)."""
-    mime = imagen.get("mime_type", "image/jpeg").split(";")[0]
-    if imagen.get("link"):  # con "Auto Download" activo en el panel de Whapi
-        r = requests.get(imagen["link"], timeout=30)
-    else:
-        r = requests.get(f"{BASE}/media/{imagen['id']}", headers=_headers(), timeout=30)
-    r.raise_for_status()
-    return r.content, mime
+    return descargar_media(imagen)
+
+
+def descargar_audio(audio: dict):
+    return descargar_media(audio, "audio/ogg")

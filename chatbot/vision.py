@@ -50,3 +50,28 @@ def interpretar(texto: str):
     if categoria not in {"ORGANICO", "RECICLABLE", "OTRO", "NO_SE_VE"}:
         categoria = "NO_SE_VE"
     return categoria, str(datos.get("objeto", "")).strip()
+
+
+PROMPT_VARIOS = (
+    "Mira la foto y lista TODOS los residuos que se ven, cada uno clasificado para separación en la fuente. "
+    "Responde SOLO con un JSON: "
+    '{"items": [{"objeto": "<nombre corto en español>", "categoria": "ORGANICO" | "RECICLABLE" | "OTRO"}]}. '
+    "ORGANICO = restos de comida, cáscaras, hojas, restos vegetales. "
+    "RECICLABLE = plástico, vidrio, metal, papel, cartón limpios. "
+    "OTRO = ni orgánico ni reciclable (higiénicos, mezclados, peligrosos). "
+    'Si no se ve ningún residuo identificable, devuelve {"items": []}.'
+)
+
+
+def segmentar_foto(imagen: bytes, mime: str = "image/jpeg"):
+    """Foto -> [(categoria, objeto), ...] con un ítem por cada residuo visible (lista vacía si no se ve ninguno)."""
+    import segmentar
+    cliente = anthropic.Anthropic()
+    respuesta = cliente.messages.create(
+        model=MODELO, max_tokens=400,
+        messages=[{"role": "user", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": mime,
+                                         "data": base64.b64encode(imagen).decode("ascii")}},
+            {"type": "text", "text": PROMPT_VARIOS}]}])
+    texto = "".join(b.text for b in respuesta.content if b.type == "text")
+    return [(i["categoria"], i["objeto"]) for i in segmentar.interpretar(texto) if i["categoria"] != "DUDA"]

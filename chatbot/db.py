@@ -1,96 +1,172 @@
-"""Almacenamiento SQLite de las solicitudes. Cada solicitud tiene un código único.
+"""Almacenamiento con SQLAlchemy sobre PostgreSQL (obligatorio; no hay alternativa SQLite).
 
-`contacto` identifica a quien pide: un teléfono (WhatsApp), un id de usuario de la app, un correo, etc.
-`canal` dice por dónde llegó: whatsapp | api | web | app ...
+Se configura con DATABASE_URL, p. ej. postgresql://usuario:clave@localhost:5432/ecoconecta
+Si no está definida o no apunta a PostgreSQL, el programa se detiene con un error claro.
+
+Tablas:
+  solicitudes    una fila por solicitud de recolección (identificador, flujo, estado, programación, puntos)
+  historial      cada cambio de estado de una solicitud (RN-04 trazabilidad)
+  conversaciones paso actual del chat de WhatsApp de cada contacto (solo lo usa el bot)
 """
+import json
 import os
-import sqlite3
 from datetime import datetime, timezone
 
+from sqlalchemy import (Column, Float, Integer, MetaData, String, Table, Text, create_engine, func,
+                        insert, select, update)
 
-def ruta():
-    """Archivo de la base de datos (variable DB_PATH; por defecto chatbot/solicitudes.db)."""
-    return os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "solicitudes.db"))
+metadata = MetaData()
+
+solicitudes = Table(
+    "solicitudes", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("codigo", String(30), unique=True),            # RES-AAAAMMDD-NNNN
+    Column("contacto", String(120), nullable=False, index=True),  # teléfono (WhatsApp) o id de usuario
+    Column("canal", String(20), nullable=False, default="whatsapp"),
+    Column("generador", String(20)),                      # hogar | negocio
+    Column("categoria", String(20), nullable=False),      # ORGANICO | RECICLABLE
+    Column("flujo", String(20), nullable=False),          # huerteros | recicladores (RN-01)
+    Column("objeto", String(200)),                        # residuo identificado (si se supo)
+    Column("metodo", String(20)),                         # texto | foto | usuario
+    Column("direccion", Text),
+    Column("disponibilidad", Text),
+    Column("observaciones", Text),
+    Column("estado", String(20), nullable=False),         # recibida|en_revision|asignada|programada|recolectada|cancelada
+    Column("coordinador", String(120)),
+    Column("recolector", String(120)),
+    Column("dia", String(40)),
+    Column("hora", String(40)),
+    Column("cantidad_kg", Float),
+    Column("puntos", Integer, nullable=False, default=0),
+    Column("creada", String(40), nullable=False),
+    Column("actualizada", String(40), nullable=False),
+)
+
+historial = Table(
+    "historial", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("codigo", String(30), nullable=False, index=True),
+    Column("estado", String(20), nullable=False),
+    Column("actor", String(120)),
+    Column("detalle", Text),
+    Column("fecha", String(40), nullable=False),
+)
+
+conversaciones = Table(
+    "conversaciones", metadata,
+    Column("contacto", String(120), primary_key=True),
+    Column("paso", String(30), nullable=False),
+    Column("datos", Text, nullable=False, default="{}"),
+    Column("actualizada", String(40), nullable=False),
+)
+
+_motores = {}
 
 
-def _conectar():
-    con = sqlite3.connect(ruta())
-    con.row_factory = sqlite3.Row
-    return con
+def url():
+    u = os.environ.get("DATABASE_URL", "").strip()
+    if not u:
+        raise RuntimeError("Falta DATABASE_URL: este servicio solo funciona con PostgreSQL "
+                           "(p. ej. postgresql://usuario:clave@localhost:5432/ecoconecta).")
+    for viejo in ("postgres://", "postgresql://"):
+        if u.startswith(viejo):
+            u = "postgresql+psycopg://" + u[len(viejo):]
+    if not u.startswith("postgresql+psycopg://"):
+        raise RuntimeError("DATABASE_URL debe ser una URL de PostgreSQL (postgresql://...).")
+    return u
+
+
+def motor():
+    u = url()
+    if u not in _motores:
+        _motores[u] = create_engine(u, pool_pre_ping=True)
+    return _motores[u]
+
+
+def _ahora():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def iniciar():
-    with _conectar() as con:
-        con.execute(
-            """CREATE TABLE IF NOT EXISTS solicitudes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                codigo TEXT UNIQUE,
-                contacto TEXT NOT NULL,
-                canal TEXT NOT NULL DEFAULT 'whatsapp',
-                descripcion TEXT,
-                categoria TEXT,          -- ORGANICO | RECICLABLE | OTRO | NULL
-                objeto TEXT,             -- nombre del residuo, si se identificó por foto
-                metodo TEXT,             -- texto | foto
-                estado TEXT NOT NULL,    -- resuelta | esperando_foto
-                creada TEXT NOT NULL
-            )"""
-        )
-        # Migración de la primera versión (columna `telefono`, sin `canal` ni `objeto`).
-        columnas = {f["name"] for f in con.execute("PRAGMA table_info(solicitudes)")}
-        if "telefono" in columnas and "contacto" not in columnas:
-            con.execute("ALTER TABLE solicitudes RENAME COLUMN telefono TO contacto")
-        if "canal" not in columnas:
-            con.execute("ALTER TABLE solicitudes ADD COLUMN canal TEXT NOT NULL DEFAULT 'whatsapp'")
-        if "objeto" not in columnas:
-            con.execute("ALTER TABLE solicitudes ADD COLUMN objeto TEXT")
+    metadata.create_all(motor())
 
 
-def crear(contacto, descripcion, canal="whatsapp"):
-    """Crea una solicitud y devuelve su código único, p. ej. RES-20261120-0007."""
-    ahora = datetime.now(timezone.utc)
-    with _conectar() as con:
-        cur = con.execute(
-            "INSERT INTO solicitudes (contacto, canal, descripcion, estado, creada) "
-            "VALUES (?, ?, ?, 'esperando_foto', ?)",
-            (contacto, canal, descripcion, ahora.isoformat()),
-        )
-        codigo = f"RES-{ahora:%Y%m%d}-{cur.lastrowid:04d}"
-        con.execute("UPDATE solicitudes SET codigo = ? WHERE id = ?", (codigo, cur.lastrowid))
+def vaciar():
+    """Borra todos los datos (solo para pruebas)."""
+    metadata.drop_all(motor())
+    metadata.create_all(motor())
+
+
+def _fila(r):
+    return dict(r._mapping) if r is not None else None
+
+
+def crear_solicitud(datos: dict) -> str:
+    """Inserta la solicitud (estado `recibida`) y devuelve su código único, p. ej. RES-20261120-0007."""
+    ahora = _ahora()
+    campos = {k: datos.get(k) for k in (
+        "contacto", "canal", "generador", "categoria", "flujo", "objeto", "metodo",
+        "direccion", "disponibilidad", "observaciones")}
+    with motor().begin() as con:
+        r = con.execute(insert(solicitudes).values(
+            **campos, estado="recibida", puntos=0, creada=ahora, actualizada=ahora))
+        n = r.inserted_primary_key[0]
+        codigo = f"RES-{datetime.now(timezone.utc):%Y%m%d}-{n:04d}"
+        con.execute(update(solicitudes).where(solicitudes.c.id == n).values(codigo=codigo))
+        con.execute(insert(historial).values(
+            codigo=codigo, estado="recibida", actor=datos.get("canal") or "usuario",
+            detalle="Solicitud registrada", fecha=ahora))
     return codigo
 
 
-def resolver(codigo, categoria, metodo, objeto=""):
-    with _conectar() as con:
-        con.execute(
-            "UPDATE solicitudes SET categoria = ?, metodo = ?, objeto = ?, estado = 'resuelta' WHERE codigo = ?",
-            (categoria, metodo, objeto or None, codigo),
-        )
-
-
-def pendiente_de_foto(contacto):
-    """Última solicitud de ese contacto que sigue esperando una foto."""
-    with _conectar() as con:
-        fila = con.execute(
-            "SELECT * FROM solicitudes WHERE contacto = ? AND estado = 'esperando_foto' ORDER BY id DESC LIMIT 1",
-            (contacto,),
-        ).fetchone()
-    return dict(fila) if fila else None
-
-
 def obtener(codigo):
-    with _conectar() as con:
-        fila = con.execute("SELECT * FROM solicitudes WHERE codigo = ?", (codigo.upper(),)).fetchone()
-    return dict(fila) if fila else None
+    with motor().connect() as con:
+        return _fila(con.execute(select(solicitudes).where(solicitudes.c.codigo == str(codigo).upper())).first())
 
 
-def listar(contacto=None, limite=50):
-    """Solicitudes más recientes primero; opcionalmente solo las de un contacto."""
-    limite = max(1, min(int(limite), 200))
-    with _conectar() as con:
-        if contacto:
-            filas = con.execute(
-                "SELECT * FROM solicitudes WHERE contacto = ? ORDER BY id DESC LIMIT ?", (contacto, limite)
-            ).fetchall()
+def listar(contacto=None, flujo=None, estado=None, limite=50):
+    q = select(solicitudes).order_by(solicitudes.c.id.desc()).limit(max(1, min(int(limite), 200)))
+    for col, val in ((solicitudes.c.contacto, contacto), (solicitudes.c.flujo, flujo), (solicitudes.c.estado, estado)):
+        if val:
+            q = q.where(col == val)
+    with motor().connect() as con:
+        return [_fila(r) for r in con.execute(q)]
+
+
+def actualizar(codigo, estado, actor=None, detalle=None, **campos):
+    """Cambia el estado, guarda los campos dados y deja registro en el historial."""
+    ahora = _ahora()
+    with motor().begin() as con:
+        con.execute(update(solicitudes).where(solicitudes.c.codigo == codigo)
+                    .values(estado=estado, actualizada=ahora, **campos))
+        con.execute(insert(historial).values(codigo=codigo, estado=estado, actor=actor, detalle=detalle, fecha=ahora))
+
+
+def historial_de(codigo):
+    with motor().connect() as con:
+        q = select(historial).where(historial.c.codigo == codigo).order_by(historial.c.id)
+        return [_fila(r) for r in con.execute(q)]
+
+
+def puntos_de(contacto) -> int:
+    with motor().connect() as con:
+        q = select(func.coalesce(func.sum(solicitudes.c.puntos), 0)).where(
+            solicitudes.c.contacto == contacto, solicitudes.c.estado == "recolectada")
+        return int(con.execute(q).scalar())
+
+
+# ---- estado de la conversación de WhatsApp
+def cargar_conv(contacto):
+    with motor().connect() as con:
+        f = con.execute(select(conversaciones).where(conversaciones.c.contacto == contacto)).first()
+    return (f.paso, json.loads(f.datos)) if f else ("MENU", {})
+
+
+def guardar_conv(contacto, paso, datos):
+    ahora, d = _ahora(), json.dumps(datos, ensure_ascii=False)
+    with motor().begin() as con:
+        if con.execute(select(conversaciones.c.contacto).where(conversaciones.c.contacto == contacto)).first():
+            con.execute(update(conversaciones).where(conversaciones.c.contacto == contacto)
+                        .values(paso=paso, datos=d, actualizada=ahora))
         else:
-            filas = con.execute("SELECT * FROM solicitudes ORDER BY id DESC LIMIT ?", (limite,)).fetchall()
-    return [dict(f) for f in filas]
+            con.execute(insert(conversaciones).values(contacto=contacto, paso=paso, datos=d, actualizada=ahora))
