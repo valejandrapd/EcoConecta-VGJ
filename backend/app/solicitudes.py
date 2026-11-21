@@ -108,7 +108,8 @@ def crear(s, usuario: Usuario, flujo: str, *, tipo_generador: str | None = None,
           direccion: str | None = None, disponibilidad: str | None = None, tamano: str | None = None,
           dias: list[str] | None = None, hora_desde: time | None = None, hora_hasta: time | None = None,
           direccion_etiqueta: str | None = None, bonificacion: str | None = None,
-          zona: str | None = None) -> Solicitud:
+          zona: str | None = None, avisar_usuario: bool = True) -> Solicitud:
+    """Crea la solicitud. `avisar_usuario=False` cuando el canal ya le responde (bot de WhatsApp)."""
     if flujo not in PREFIJO_FLUJO:
         raise ErrorSolicitud("flujo debe ser 'organico' o 'reciclable'")
     tipo = tipo_generador or usuario.tipo_generador or "hogar"
@@ -139,7 +140,8 @@ def crear(s, usuario: Usuario, flujo: str, *, tipo_generador: str | None = None,
     s.flush()
     s.add(HistorialSolicitud(solicitud_id=sol.id, estado_nuevo="recibida", actor_id=usuario.id))
     n = obtener_notificador()
-    n.solicitud_recibida(s, sol)
+    if avisar_usuario:
+        n.solicitud_recibida(s, sol)
     n.nueva_solicitud(s, sol)  # RN-01: solo a la coordinación del flujo
     return sol
 

@@ -194,11 +194,15 @@ class ConversacionWhatsapp(Base):
     """Estado corto de cada número: ventana de 24 h, intentos fallidos y paso actual."""
     __tablename__ = "conversaciones_whatsapp"
     wa_id: Mapped[str] = mapped_column(String(20), primary_key=True)
-    estado: Mapped[str | None] = mapped_column(String(30))  # None | esperando_residuo
+    estado: Mapped[str | None] = mapped_column(String(30))  # None | esperando_residuo | sol_<paso>
     fallos_seguidos: Mapped[int] = mapped_column(Integer, default=0)
     ultimo_flujo: Mapped[str | None] = mapped_column(String(20))
     ultimo_entrante_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     aviso_limite_en: Mapped[date | None] = mapped_column(Date)
+    # Asistente de solicitud por WhatsApp: respuestas parciales (JSON) y cuándo se tocó por última vez.
+    # Se borra al crear o cancelar la solicitud.
+    borrador: Mapped[str | None] = mapped_column(Text)
+    borrador_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class CasoCoordinacion(Base):

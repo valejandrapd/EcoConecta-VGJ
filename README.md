@@ -120,6 +120,8 @@ En todas las pantallas, el **menú hamburguesa** (arriba a la izquierda) lleva a
 
 El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formulario con el flujo ya elegido.
 
+El menú hamburguesa tiene **Escríbenos por WhatsApp**: abre el chat del bot o va directo a una opción (`wa.me/<número>?text=2` para solicitar, `4` consultar, `3` orgánico o reciclable, `7` puntos, `6` persona). El número sale de `WHATSAPP_NUMERO_PUBLICO` por `GET /api/contacto`; si está vacío, el menú lo indica.
+
 ### API (`/api`)
 
 - **Autenticación de la web:** `POST /auth/registro` y `POST /auth/login` devuelven un token, que luego se envía como `Authorization: Bearer <token>`. Las claves se guardan con scrypt y los tokens se firman con HMAC (`AUTH_SECRET`), todo con la librería estándar de Python. `GET /auth/yo` devuelve el perfil, `PATCH /auth/yo` lo edita y `POST /auth/clave` cambia la clave (pide la actual).
@@ -147,7 +149,7 @@ El enlace que envía el bot (`/solicitudes/nueva?flujo=organico`) abre el formul
 | Mis puntos (`7`) | Implementado |
 | Derivación a una persona (lo pide el usuario, o el bot no entiende dos veces seguidas). Se registra en la bandeja de la coordinación de huerta o de reciclaje | Implementado (`casos_coordinacion`) |
 | Notificaciones `solicitud_recibida`, `nueva_solicitud` y `solicitud_programada` (día, hora y persona) | Implementado. Texto dentro de la ventana de 24 h, plantilla fuera de ella |
-| Crear la solicitud completa por chat | Pendiente (opcional). El bot envía el enlace al formulario web |
+| Crear la solicitud completa por chat | Implementado (`app/whatsapp/solicitud_bot.py`). La opción *2* sigue los mismos 8 pasos del asistente web con menú numérico: tipo (o "No estoy seguro" con texto o foto), consejos, tamaño, días, horario, dirección (la de siempre, una guardada o una nueva con zona y nombre), puntos y resumen con nota opcional. *atrás* vuelve un paso y *menú* sale sin crear nada. El borrador vive en `conversaciones_whatsapp.borrador` y se borra al terminar o a las 6 h |
 
 ### Configuración en Meta
 

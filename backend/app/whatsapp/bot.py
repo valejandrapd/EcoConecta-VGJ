@@ -17,7 +17,7 @@ from ..ia.imagen import ImagenInvalida
 from ..ia.modelo import IANoDisponible
 from ..ia.reglas import normalizar
 from ..models import CasoCoordinacion, Contenido, ConversacionWhatsapp, Solicitud, Usuario
-from . import textos
+from . import solicitud_bot, textos
 from .cliente import ErrorWhatsApp, obtener_cliente
 from .mensajeria import entrantes_hoy, enviar, marcar_intencion
 
@@ -86,7 +86,14 @@ def _texto(s, cuerpo: str, usuario, conv) -> Respuesta:
     t = normalizar(cuerpo)
     if not t or t in MENU:
         conv.estado = None
+        solicitud_bot.salir(conv)
         return Respuesta(textos.menu(), "menu")
+    if solicitud_bot.activo(conv):
+        # Dentro del asistente de solicitud los números son opciones del paso, no del menú
+        if usuario and not (config().modo_piloto and not usuario.piloto):
+            p = solicitud_bot.continuar(s, usuario, conv, cuerpo)
+            return Respuesta(p.texto, p.intencion)
+        solicitud_bot.salir(conv)
     if t == "1":
         return Respuesta(textos.QUE_ES, "que_es")
     if t == "5":
@@ -108,8 +115,9 @@ def _texto(s, cuerpo: str, usuario, conv) -> Respuesta:
         from ..solicitudes import puntos_de
         return Respuesta(textos.puntos(puntos_de(s, usuario.id)), "puntos")
 
-    if t == "2":
-        return Respuesta(textos.solicitar(), "solicitar")
+    if t == "2" or t in {"solicitar", "nueva solicitud", "pedir recoleccion", "recoleccion"}:
+        p = solicitud_bot.iniciar(s, usuario, conv)
+        return Respuesta(p.texto, p.intencion)
     if t == "3":
         conv.estado = "esperando_residuo"
         return Respuesta(textos.PEDIR_RESIDUO, "pedir_residuo")
@@ -156,6 +164,15 @@ def _imagen(s, imagen: dict, usuario, conv) -> Respuesta:
         datos = obtener_cliente().descargar_media(imagen.get("id", ""))
     except ErrorWhatsApp:
         return Respuesta(textos.CONTINGENCIA_FOTO, "foto_contingencia")
+    if solicitud_bot.activo(conv):
+        try:
+            p = solicitud_bot.foto(s, usuario, conv, datos)
+        finally:
+            del datos
+        if p:
+            return Respuesta(p.texto, p.intencion)
+        return Respuesta("Ahora mismo estamos creando tu solicitud. Responde con el número de una opción "
+                         "o escribe *menú* para salir.", "sol_foto_fuera_de_paso")
     try:
         sug = cascada.sugerir_imagen(datos)  # la foto se limpia y no se guarda
     except ImagenInvalida:

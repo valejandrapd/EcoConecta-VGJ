@@ -22,9 +22,10 @@
 > El bot lo está actualizando otro integrante del equipo; ajusta estos pasos a su versión.
 
 1. Escribe `hola` y aparece el menú.
-2. Escribe `3` y envía la foto de una botella. La respuesta es una sugerencia *Reciclable* con su confianza y el enlace al formulario.
-3. Escribe el código `ORG-0042`. La respuesta trae estado, fecha, hora y persona encargada.
-4. Desde otro número, escribe el mismo código. El bot no revela nada (RN-07).
+2. Escribe `2` y sigue el asistente con números (tipo, consejos, tamaño, días, horario, dirección y puntos) hasta recibir el código. Desde la web, el menú ☰ → *Escríbenos por WhatsApp* → *Solicitar una recolección* abre el chat con el `2` ya escrito.
+3. Escribe `3` y envía la foto de una botella. La respuesta es una sugerencia *Reciclable* con su confianza y el enlace al formulario.
+4. Escribe el código `ORG-0042`. La respuesta trae estado, fecha, hora y persona encargada.
+5. Desde otro número, escribe el mismo código. El bot no revela nada (RN-07).
 
 ## Si no hay número de Meta
 

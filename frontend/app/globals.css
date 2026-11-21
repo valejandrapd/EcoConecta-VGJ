@@ -332,3 +332,12 @@ h1, h2, h3, p, td, dd, summary { overflow-wrap: anywhere; }
   .envoltura-boton button { width: 100%; }
   .tabla-tarjetas .envoltura-boton button, .tabla-tarjetas td.acciones-fila button { width: auto; }
 }
+
+/* Submenú de WhatsApp dentro del menú hamburguesa */
+.cajon nav button.item { width: 100%; }
+.cajon .icono.whatsapp { display: inline-flex; justify-content: center; color: var(--primario); }
+.cajon .flecha { margin-left: auto; color: var(--suave); }
+.cajon .submenu { margin: 0 0 4px 20px; padding-left: 12px; border-left: 3px solid var(--tinte); display: flex; flex-direction: column; }
+.cajon .submenu a { padding: 10px 12px; font-weight: 500; min-height: 44px; }
+.cajon .submenu p { margin: 4px 12px 8px; }
+p.submenu { padding: 8px 12px; }

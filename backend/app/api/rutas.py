@@ -328,6 +328,12 @@ def cambiar_personal(personal_id: int, d: CambioPersonal, uid: int = Depends(act
         return _personal(p)
 
 
+@router.get("/contacto")
+def contacto():
+    """Datos públicos de contacto: el número del bot para el botón "Escríbenos por WhatsApp"."""
+    return {"whatsapp": config().whatsapp_numero_publico or None}
+
+
 @router.get("/zonas")
 def zonas():
     """Zonas activas (públicas: se usan en el registro)."""

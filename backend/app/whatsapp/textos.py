@@ -47,7 +47,8 @@ def enlace_formulario(flujo: str | None = None) -> str:
 
 
 def solicitar() -> str:
-    return ("Para solicitar una recolección llena el formulario (toma 1 minuto):\n"
+    """Enlace al asistente web (alternativa al asistente por WhatsApp de `solicitud_bot`)."""
+    return ("También puedes solicitar la recolección en la web (toma 1 minuto):\n"
             f"{enlace_formulario()}")
 
 
@@ -90,7 +91,8 @@ def sugerencia(s) -> str:
     if s.categoria in ("organico", "reciclable"):
         return (f"Sugerencia{objeto}: *{NOMBRE_CATEGORIA[s.categoria]}* (confianza {s.confianza}).\n"
                 f"{CONSEJO[s.categoria]}\n"
-                f"Solicita la recolección aquí: {enlace_formulario(s.categoria)}{pie}")
+                f"Para solicitar la recolección escribe *2* y te guío paso a paso, "
+                f"o usa la web: {enlace_formulario(s.categoria)}{pie}")
     if s.categoria == "mezcla":
         return (f"Veo una *mezcla* de orgánico y reciclable{objeto} (confianza {s.confianza}).\n"
                 "Sepáralos y haz *dos solicitudes*:\n"

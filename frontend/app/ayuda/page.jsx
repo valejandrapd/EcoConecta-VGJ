@@ -1,5 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../../lib/api";
+import { enlaceWhatsApp } from "../../components/Menu";
 
 // Preguntas frecuentes. Cada respuesta es un arreglo de párrafos.
 const GRUPOS = [
@@ -13,7 +15,7 @@ const GRUPOS = [
     ["¿Quiénes usan la web?", ["Los usuarios (hogares y negocios), la coordinación de huerta, la coordinación de reciclaje y la administración. Los recicladores y los voluntarios de huerta no necesitan cuenta: la coordinación los organiza."]],
   ]],
   ["📋 Solicitudes", [
-    ["¿Cómo pido una recolección?", ["En «Mi panel» toca «+ Crear solicitud». Eliges el tipo de residuo, el tamaño, los días y el horario, la dirección y cómo quieres tus puntos. Al final recibes un código."]],
+    ["¿Cómo pido una recolección?", ["En «Mi panel» toca «+ Crear solicitud». Eliges el tipo de residuo, el tamaño, los días y el horario, la dirección y cómo quieres tus puntos. Al final recibes un código. También puedes hacerlo por WhatsApp: escribe «2» y el bot te hace las mismas preguntas con números."]],
     ["¿Qué significa el código ORG-0042 o REC-0017?", ["ORG es una solicitud de orgánicos y REC de reciclables. Con ese código consultas el estado en tu panel o por WhatsApp."]],
     ["¿Qué significa cada estado?", ["Recibida: llegó tu solicitud. En revisión: la coordinación la está mirando. Asignada: ya tiene reciclador. Programada: tiene día y hora. Recolectada: se entregó y se sumaron tus puntos. Cancelada: no se hará."]],
     ["¿Puedo tener varias solicitudes a la vez?", ["Sí, por ejemplo una de orgánicos y otra de reciclables. Cada una tiene su código."]],
@@ -47,6 +49,8 @@ const GRUPOS = [
   ]],
   ["💬 WhatsApp", [
     ["¿Cuál es el menú del WhatsApp?", ["1 Qué es EcoConecta, 2 Solicitar recolección, 3 ¿Orgánico o reciclable?, 4 Consultar una solicitud, 5 Horarios y tutorial, 6 Hablar con una persona, 7 Mis puntos."]],
+    ["¿Puedo pedir la recolección por WhatsApp?", ["Sí. Escribe «2» y el bot te guía por los mismos pasos de la web: tipo de residuo, consejos, tamaño, días, horario, dirección y puntos. Respondes con el número de cada opción.", "En cualquier momento escribe «atrás» para volver un paso o «menú» para salir sin crear la solicitud. Si no sabes qué tipo es, elige «No estoy seguro» y descríbelo o mándale una foto."]],
+    ["¿Cómo abro el WhatsApp desde la web?", ["En el menú (☰) toca «Escríbenos por WhatsApp». Puedes abrir el chat o ir directo a una opción, como solicitar una recolección o consultar tu solicitud."]],
     ["¿Por qué no me muestra el estado de un código?", ["Por seguridad, el estado solo se muestra al número que creó la solicitud. Escríbele desde el mismo WhatsApp con que te registraste."]],
     ["¿Me escriben a cualquier hora?", ["Solo te escribimos para avisos de tu solicitud: cuando se programa la recolección y cuando cambia la fecha o la hora."]],
   ]],
@@ -69,6 +73,8 @@ const normal = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 export default function Ayuda() {
   const [busca, setBusca] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  useEffect(() => { api("/contacto").then((c) => setWhatsapp(c.whatsapp || "")).catch(() => {}); }, []);
   const grupos = useMemo(() => {
     const q = normal(busca.trim());
     if (!q) return GRUPOS;
@@ -80,6 +86,7 @@ export default function Ayuda() {
     <div className="faq" style={{ maxWidth: 680, margin: "0 auto" }}>
       <h1>Ayuda</h1>
       <p className="suave">Las preguntas más comunes. Si no encuentras la tuya, escribe <b>6</b> al WhatsApp de EcoConecta y te atiende una persona.</p>
+      {whatsapp && <p><a className="boton" href={enlaceWhatsApp(whatsapp, "6")} target="_blank" rel="noopener noreferrer" style={{ width: "100%" }}>💬 Hablar con una persona por WhatsApp</a></p>}
       <label htmlFor="buscar-ayuda">Buscar</label>
       <input id="buscar-ayuda" type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Ej.: cancelar, puntos, cartón" />
       {grupos.length === 0 && <p className="suave">No encontramos esa pregunta. Prueba con otra palabra o escríbenos por WhatsApp.</p>}

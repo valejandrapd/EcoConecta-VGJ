@@ -45,6 +45,8 @@ class Config:
     retencion_mensajes_dias: int
     url_formulario: str
     url_registro: str
+    # Número público del bot (solo dígitos con indicativo, ej. 573001234567) para el botón de la web
+    whatsapp_numero_publico: str
     # API interna
     service_api_key: str
     auth_secret: str
@@ -87,6 +89,7 @@ def config() -> Config:
         retencion_mensajes_dias=_int("RETENCION_MENSAJES_DIAS", 90),
         url_formulario=os.environ.get("URL_FORMULARIO_SOLICITUD", "http://localhost:3000/solicitudes/nueva"),
         url_registro=os.environ.get("URL_REGISTRO", "http://localhost:3000/registro"),
+        whatsapp_numero_publico="".join(c for c in os.environ.get("WHATSAPP_NUMERO_PUBLICO", "") if c.isdigit()),
         service_api_key=os.environ.get("SERVICE_API_KEY", ""),
         auth_secret=os.environ.get("AUTH_SECRET", ""),
         sesion_horas=_int("SESION_HORAS", 12),

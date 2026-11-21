@@ -1,9 +1,30 @@
 "use client";
 import { useEffect, useState } from "react";
-import { cerrarSesion, sesion } from "../lib/api";
+import { api, cerrarSesion, sesion } from "../lib/api";
 
 const CLAVE_TEMA = "ecoconecta_tema";
 const TEMAS = [["light", "Claro"], ["dark", "Oscuro"], ["auto", "Automático"]];
+// Atajos al bot: cada uno abre WhatsApp con el número de la opción ya escrito.
+const ATAJOS_WHATSAPP = [
+  ["2", "🧾", "Solicitar una recolección"],
+  ["4", "🔎", "Consultar mi solicitud"],
+  ["3", "🤔", "¿Orgánico o reciclable?"],
+  ["7", "⭐", "Mis puntos"],
+  ["6", "🙋", "Hablar con una persona"],
+];
+
+export function enlaceWhatsApp(numero, texto = "Hola") {
+  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+}
+
+function IconoWhatsApp() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M8.6 8.2c.2-.5.5-.5.8-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.1.3 0 .5.6 1 1.4 1.8 2.4 2.3.2.1.4.1.5-.1l.6-.7c.2-.2.4-.2.6-.1l1.6.8c.2.1.3.3.3.5 0 .5-.2 1.2-.8 1.5-.6.3-1.5.4-3-.3-1.8-.8-3.3-2.4-4-4-.5-1.3-.3-2.3.1-2.7z" fill="currentColor" />
+    </svg>
+  );
+}
 
 function aplicarTema(tema) {
   const raiz = document.documentElement;
@@ -17,11 +38,14 @@ export default function Menu() {
   const [tema, setTema] = useState("auto");
   const [conSesion, setConSesion] = useState(false);
   const [ruta, setRuta] = useState("");
+  const [whatsapp, setWhatsapp] = useState(null);
+  const [verWhatsapp, setVerWhatsapp] = useState(false);
 
   useEffect(() => {
     try { setTema(localStorage.getItem(CLAVE_TEMA) || "auto"); } catch {}
     setConSesion(!!sesion()?.token);
     setRuta(window.location.pathname);
+    api("/contacto").then((c) => setWhatsapp(c.whatsapp || "")).catch(() => setWhatsapp(""));
   }, []);
 
   useEffect(() => {
@@ -63,6 +87,25 @@ export default function Menu() {
               {conSesion && enlace("/perfil", "👤", "Mi perfil")}
               {enlace("/tutorial", "🧭", "Tutorial")}
               {enlace("/ayuda", "❓", "Ayuda")}
+              <button className="item" onClick={() => setVerWhatsapp(!verWhatsapp)} aria-expanded={verWhatsapp}>
+                <span className="icono whatsapp"><IconoWhatsApp /></span>Escríbenos por WhatsApp
+                <span className="flecha" aria-hidden="true">{verWhatsapp ? "▴" : "▾"}</span>
+              </button>
+              {verWhatsapp && (
+                whatsapp ? (
+                  <div className="submenu">
+                    <a href={enlaceWhatsApp(whatsapp)} target="_blank" rel="noopener noreferrer"><span className="icono" aria-hidden="true">💬</span>Abrir el chat</a>
+                    {ATAJOS_WHATSAPP.map(([num, icono, texto]) => (
+                      <a key={num} href={enlaceWhatsApp(whatsapp, num)} target="_blank" rel="noopener noreferrer">
+                        <span className="icono" aria-hidden="true">{icono}</span>{texto}
+                      </a>
+                    ))}
+                    <p className="suave">Se abre WhatsApp con la opción escrita: solo toca enviar.</p>
+                  </div>
+                ) : (
+                  <p className="submenu suave">{whatsapp === null ? "Cargando…" : "El número del bot aún no está configurado. Pídeselo a la coordinación."}</p>
+                )
+              )}
               <hr />
               {conSesion ? (
                 <button className="item" onClick={salir}><span className="icono" aria-hidden="true">🚪</span>Salir</button>

@@ -63,7 +63,7 @@ export default function Tutorial() {
         <h2>4. También por WhatsApp</h2>
         <ol className="pasos-tutorial">
           <li><div className="ilustracion" aria-hidden="true"><Camara /></div>
-            <div><p style={{ margin: 0 }}>Escríbele al número de EcoConecta. El menú te deja crear una solicitud, consultar su estado con el código o preguntar cómo separar un residuo. Puedes mandar una foto y te decimos si es orgánico o reciclable.</p></div></li>
+            <div><p style={{ margin: 0 }}>Abre el menú (☰) y toca «Escríbenos por WhatsApp». Escribe «2» y el bot te hace las mismas preguntas de la web, respondiendo con números. También consultas tu solicitud con el código, ves tus puntos o mandas una foto para saber si tu residuo es orgánico o reciclable.</p></div></li>
         </ol>
       </section>
 
