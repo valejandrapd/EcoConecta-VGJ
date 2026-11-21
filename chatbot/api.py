@@ -1,17 +1,21 @@
-"""API REST de EcoConecta para apps móviles y sitios web.
+"""API REST /api/v1 de EcoConecta: sirve al bot, a la app y a la web, y define el CONTRATO que debe cumplir el backend real.
 
-Se monta en la misma app Flask que el webhook de WhatsApp (ver `app.py`), bajo `/api/v1`.
+Variables opcionales:  API_KEY (cabecera X-API-Key) · CORS_ORIGINS · MAX_FOTO_MB
 
-Variables de entorno (todas opcionales):
-    API_KEY         si se define, cada petición debe traer la cabecera `X-API-Key: <valor>`
-    CORS_ORIGINS    orígenes web permitidos, separados por coma (p. ej. https://miweb.com) o `*`
-    MAX_FOTO_MB     tamaño máximo de la foto (por defecto 8)
+  POST /clasificar                       texto o foto -> categoría sugerida (sin guardar nada)
+  POST /segmentar                        texto, foto o audio con VARIOS residuos -> cada uno con su tipo (sin guardar nada)
+  POST /solicitudes                      crea la solicitud y la enruta (huerteros | recicladores)
+  GET  /solicitudes/<codigo>[?contacto=] detalle + historial (con `contacto`, solo si es suya)
+  GET  /solicitudes?contacto=&flujo=&estado=&limite=
+  GET  /puntos/<contacto>                puntos acumulados
+  POST /notificar                        {"codigo"} avisa al usuario por WhatsApp del estado actual
 
-Endpoints:
-    POST /api/v1/solicitudes                  JSON {"contacto","texto"}  ó  multipart (contacto + foto)
-    POST /api/v1/solicitudes/<codigo>/foto    multipart: foto=<archivo>
-    GET  /api/v1/solicitudes/<codigo>
-    GET  /api/v1/solicitudes?contacto=...&limite=50
+  [PROVISIONAL – lo hace el panel del coordinador/recolector en el backend real]
+  POST /solicitudes/<codigo>/asignar     {"coordinador","recolector"}
+  POST /solicitudes/<codigo>/programar   {"dia","hora","recolector"?}
+  POST /solicitudes/<codigo>/recolectar  {"cantidad_kg"}
+  POST /solicitudes/<codigo>/cancelar    {"motivo"}
+Las acciones provisionales avisan solas al usuario por WhatsApp.
 """
 import hmac
 import logging
@@ -20,6 +24,8 @@ import os
 from flask import Blueprint, jsonify, request
 
 import core
+import notificar
+import transcripcion
 import vision
 
 log = logging.getLogger("ecoconecta.api")
@@ -37,7 +43,7 @@ def _error(codigo_http, mensaje):
 @bp.before_request
 def _autenticar():
     if request.method == "OPTIONS":
-        return None  # preflight de CORS
+        return None
     clave = os.environ.get("API_KEY")
     if clave and not hmac.compare_digest(request.headers.get("X-API-Key", ""), clave):
         return _error(401, "API key inválida o ausente (cabecera X-API-Key).")
@@ -56,14 +62,26 @@ def _cors(resp):
     return resp
 
 
-@bp.route("/solicitudes", methods=["OPTIONS"])
-@bp.route("/solicitudes/<path:_>", methods=["OPTIONS"])
-def _preflight(_=None):
-    return "", 204
+@bp.errorhandler(core.SolicitudNoEncontrada)
+def _no_existe(_):
+    return _error(404, "No existe esa solicitud.")
+
+
+@bp.errorhandler(core.DatosInvalidos)
+def _invalido(e):
+    return _error(400, str(e))
+
+
+@bp.errorhandler(core.TransicionInvalida)
+def _transicion(e):
+    return _error(409, str(e))
+
+
+def _cuerpo():
+    return request.get_json(silent=True) or {}
 
 
 def _leer_foto():
-    """Devuelve (bytes, mime) del campo multipart `foto`, o None si no vino."""
     archivo = request.files.get("foto")
     if not archivo:
         return None
@@ -73,65 +91,123 @@ def _leer_foto():
     return datos, (archivo.mimetype or "").lower()
 
 
-def _clasificar(datos, mime):
-    return vision.clasificar_foto(datos, mime)
+def _leer_audio():
+    archivo = request.files.get("audio")
+    if not archivo:
+        return None
+    datos = archivo.read(max_foto_bytes() + 1)
+    if len(datos) > max_foto_bytes():
+        raise core.DatosInvalidos(f"El audio supera el máximo de {os.environ.get('MAX_FOTO_MB', '8')} MB.")
+    return datos, (archivo.mimetype or "audio/ogg").lower()
+
+
+def _avisar(s):
+    """Avisa por WhatsApp; si falla el envío no se deshace el cambio de estado."""
+    try:
+        notificar.notificar(s["codigo"])
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo notificar la solicitud %s", s["codigo"])
+    return s
+
+
+@bp.post("/clasificar")
+def clasificar():
+    texto = request.form.get("texto") if request.files or request.form else _cuerpo().get("texto")
+    foto = _leer_foto()
+    try:
+        if foto:
+            return jsonify(core.clasificar(texto, foto[0], foto[1], vision.clasificar_foto))
+        return jsonify(core.clasificar(texto))
+    except (core.DatosInvalidos, core.SolicitudNoEncontrada):
+        raise
+    except Exception:  # noqa: BLE001 - fallo del proveedor de IA, red, etc.
+        log.exception("Error clasificando")
+        return _error(502, "No se pudo identificar el residuo en este momento. Intenta de nuevo.")
+
+
+@bp.post("/segmentar")
+def segmentar():
+    """Separa varios residuos y los agrupa por tipo (cada tipo = un colectivo = una solicitud al crearla).
+    Multipart o JSON con `texto`, `foto` (JPG/PNG/WEBP/GIF) o `audio` (se transcribe y se devuelve en `transcripcion`)."""
+    form = request.form if request.files or request.form else _cuerpo()
+    texto, foto, audio = form.get("texto"), _leer_foto(), _leer_audio()
+    try:
+        transcrito = None
+        if audio:
+            if not transcripcion.configurada():
+                return _error(503, "La transcripción de audio no está configurada (falta STT_API_KEY).")
+            transcrito = transcripcion.transcribir(*audio)
+            if not transcrito:
+                raise core.DatosInvalidos("No se entendió el audio. Intenta de nuevo o envía el texto.")
+            texto = transcrito
+        if foto:
+            r = core.segmentar(imagen=foto[0], mime=foto[1], segmentar_foto=vision.segmentar_foto)
+        else:
+            r = core.segmentar(texto=texto)
+        if transcrito is not None:
+            r["metodo"], r["transcripcion"] = "audio", transcrito
+        return jsonify(r)
+    except (core.DatosInvalidos, core.SolicitudNoEncontrada):
+        raise
+    except Exception:  # noqa: BLE001 - fallo del proveedor de IA / transcripción, red, etc.
+        log.exception("Error segmentando")
+        return _error(502, "No se pudo analizar el residuo en este momento. Intenta de nuevo.")
 
 
 @bp.post("/solicitudes")
-def crear_solicitud():
-    try:
-        if request.is_json:
-            cuerpo = request.get_json(silent=True) or {}
-            r = core.registrar_texto(cuerpo.get("contacto"), cuerpo.get("texto"), canal=cuerpo.get("canal") or "api")
-            return jsonify(r), 201
-        # multipart: contacto (+ foto, y opcionalmente texto)
-        contacto, texto = request.form.get("contacto"), request.form.get("texto")
-        canal = request.form.get("canal") or "api"
-        foto = _leer_foto()
-        if texto and texto.strip():
-            r = core.registrar_texto(contacto, texto, canal=canal)
-            if r["necesita_foto"] and foto:
-                r = core.adjuntar_foto(contacto, *foto, _clasificar, canal=canal, codigo=r["codigo"])
-            return jsonify(r), 201
-        if foto:
-            return jsonify(core.adjuntar_foto(contacto, *foto, _clasificar, canal=canal)), 201
-        raise core.DatosInvalidos("Envía `texto` (JSON o formulario) y/o una `foto` (multipart).")
-    except core.DatosInvalidos as e:
-        return _error(400, str(e))
-    except Exception:  # noqa: BLE001 - fallo del proveedor de IA, red, etc.
-        log.exception("Error creando la solicitud")
-        return _error(502, "No se pudo identificar el residuo en este momento. Intenta de nuevo.")
-
-
-@bp.post("/solicitudes/<codigo>/foto")
-def enviar_foto(codigo):
-    try:
-        foto = _leer_foto()
-        if not foto:
-            raise core.DatosInvalidos("Falta el archivo `foto` (multipart/form-data).")
-        r = core.adjuntar_foto(request.form.get("contacto"), *foto, _clasificar, codigo=codigo)
-        return jsonify(r)
-    except core.SolicitudNoEncontrada:
-        return _error(404, "No existe esa solicitud.")
-    except core.DatosInvalidos as e:
-        return _error(400, str(e))
-    except Exception:  # noqa: BLE001
-        log.exception("Error procesando la foto de %s", codigo)
-        return _error(502, "No se pudo identificar el residuo en este momento. Intenta de nuevo.")
+def crear():
+    s = core.crear_solicitud(_cuerpo())
+    return jsonify(_avisar(s) if s.get("canal") == "whatsapp" else s), 201
 
 
 @bp.get("/solicitudes/<codigo>")
-def ver_solicitud(codigo):
-    try:
-        return jsonify(core.consultar(codigo))
-    except core.SolicitudNoEncontrada:
-        return _error(404, "No existe esa solicitud.")
+def ver(codigo):
+    return jsonify(core.consultar(codigo, request.args.get("contacto"), con_historial=True))
 
 
 @bp.get("/solicitudes")
-def listar_solicitudes():
+def listar():
     try:
         limite = int(request.args.get("limite", 50))
     except ValueError:
         return _error(400, "`limite` debe ser un número.")
-    return jsonify(core.listar(request.args.get("contacto"), limite))
+    return jsonify(core.listar(request.args.get("contacto"), request.args.get("flujo"),
+                               request.args.get("estado"), limite))
+
+
+@bp.get("/puntos/<contacto>")
+def puntos(contacto):
+    return jsonify(contacto=contacto, puntos=core.puntos(contacto))
+
+
+@bp.post("/notificar")
+def avisar():
+    codigo = _cuerpo().get("codigo")
+    if not codigo:
+        raise core.DatosInvalidos("Falta `codigo`.")
+    texto = notificar.notificar(codigo)
+    return jsonify(enviado=bool(texto))
+
+
+@bp.post("/solicitudes/<codigo>/asignar")
+def asignar(codigo):
+    b = _cuerpo()
+    return jsonify(_avisar(core.asignar(codigo, b.get("coordinador"), b.get("recolector"))))
+
+
+@bp.post("/solicitudes/<codigo>/programar")
+def programar(codigo):
+    b = _cuerpo()
+    return jsonify(_avisar(core.programar(codigo, b.get("dia"), b.get("hora"), b.get("recolector"), b.get("actor"))))
+
+
+@bp.post("/solicitudes/<codigo>/recolectar")
+def recolectar(codigo):
+    b = _cuerpo()
+    return jsonify(_avisar(core.recolectar(codigo, b.get("cantidad_kg"), b.get("actor"))))
+
+
+@bp.post("/solicitudes/<codigo>/cancelar")
+def cancelar(codigo):
+    b = _cuerpo()
+    return jsonify(_avisar(core.cancelar(codigo, b.get("motivo", ""), b.get("actor"))))

@@ -1,63 +1,87 @@
-# EcoConecta-VGJ
+# EcoConecta-VGJ · Chatbot de WhatsApp
 
-Aplicativo de gestión de residuos. Este repositorio incluye el **clasificador de residuos** (`/chatbot`) que
-identifica si un residuo es **orgánico** o **reciclable**, listo para usarse desde **WhatsApp**, una **app** o una **web**.
+Chatbot de **EcoConecta · Villas de San Pablo** (Hackathon Unilibre · Fundación Santo Domingo). Guía a hogares y
+unidades productivas por WhatsApp para **solicitar la recolección** de sus residuos: identifica si son **orgánicos**
+(→ huerteros) o **reciclables** (→ recicladores), registra la solicitud con un **identificador único**, avisa cuando se
+**programa** (día, hora y persona) y cuando se **recolecta**, y muestra los **puntos** del usuario.
 
 ```
-WhatsApp ─► bot.py ─┐
-App / Web ─► api.py ─┴─► core.py ─► clasificador.py (texto) · vision.py (foto, Claude) ─► db.py (SQLite)
+WhatsApp (Whapi) ─► bot.py ─► conversacion.py ─┐
+App / Web ───────► api.py  ──────────────────────┼─► backend.py ─► core.py (provisional) ─► PostgreSQL
+                                                   └─► BACKEND_URL  (backend real del equipo, ver docs/CONTRATO_BACKEND.md)
+Foto ─► vision.py (Claude)   Audio ─► transcripcion.py (STT) ─► texto   Texto ─► segmentar.py (Claude)
 ```
 
-El núcleo (`core.py`) no depende de ningún canal: WhatsApp es solo un adaptador. Para integrarlo con tu app o web
-usa la **API REST** — ver [`docs/API.md`](docs/API.md).
+> **Estado:** el chatbot está completo. Para la demostración incluye un **backend provisional** (`core.py`) que el
+> equipo reemplazará por el real sin tocar el bot: ver [`docs/CONTRATO_BACKEND.md`](docs/CONTRATO_BACKEND.md).
+> WhatsApp va por **Whapi.Cloud** como sustituto de la API de Meta (autorizado por la organización para este proyecto).
 
-## Cómo funciona el chatbot
+## Cómo conversa
 
-1. La persona escribe por WhatsApp qué residuo tiene → se crea una solicitud con **ID único** (`RES-AAAAMMDD-NNNN`).
-2. Si el texto alcanza, responde **ORGÁNICO** o **RECICLABLE**.
-3. Si no se sabe qué residuo es, **pide una foto** y lo identifica **por cámara** (API de Claude).
-   La foto resuelve la misma solicitud, con el mismo ID.
-4. Consulta de una solicitud: `estado RES-20261120-0001`.
+`menú` en cualquier momento. Opciones: **1** Solicitar recolección · **2** Consultar mis solicitudes · **3** Ver mis puntos ·
+**4** Aprender a separar · **5** ¿Qué residuo es?
 
-Todo se guarda en SQLite (`chatbot/solicitudes.db`, tabla `solicitudes`) para que el resto del aplicativo
-pueda leerlo: `codigo, contacto, canal, descripcion, categoria (ORGANICO|RECICLABLE|OTRO), objeto, metodo (texto|foto), estado, creada`.
-`contacto` es el teléfono (WhatsApp) o el id de usuario de tu app; `canal` indica por dónde llegó.
+Solicitar: tipo de generador → residuo (**texto, audio 🎙️ o foto 📷**) → *la persona confirma el tipo* → dirección →
+disponibilidad → observaciones → resumen y confirmación → código `RES-AAAAMMDD-NNNN`.
 
-## Puesta en marcha
+**Varios residuos a la vez:** si dice _"tengo cáscaras de banano y hojas de papel"_ (escrito, en audio o en una foto con
+ambos), el bot los **separa por tipo** y, al confirmar, crea **una solicitud por colectivo** (cáscaras → huerteros, papel →
+recicladores) con la misma dirección y horario. Lo que no se pueda clasificar se le pregunta a la persona; lo no
+aprovechable (ordinario) no genera solicitud. Los audios se transcriben y el bot responde _"🎙️ Entendí: «…»"_ para que
+la persona verifique. Los audios necesitan `STT_API_KEY` (ver variables); sin ella el bot pide texto o foto.
+
+## Ejecutar con Docker
 
 ```bash
-cd chatbot
-pip install -r requirements.txt
-cp .env.example .env        # y completa WHAPI_TOKEN y ANTHROPIC_API_KEY
-python -m pytest            # pruebas
-python app.py               # servidor en http://localhost:5000 (webhook + API REST)
+cp chatbot/.env.example .env      # completa WHAPI_TOKEN, ANTHROPIC_API_KEY y POSTGRES_PASSWORD
+docker compose up --build         # PostgreSQL + chatbot en http://localhost:5000
 ```
 
-Para recibir mensajes en tu PC:
+Para recibir WhatsApp desde tu PC: `ngrok http 5000` y en **Whapi.Cloud → Webhooks** agrega
+`https://TU-URL.ngrok-free.app/webhook` (evento **messages · post**). En la nube, usa la URL pública del despliegue.
 
-```bash
-ngrok http 5000
-```
+Sin Docker: `cd chatbot && pip install -r requirements.txt && DATABASE_URL=postgresql://… python app.py`.
+Pruebas (necesitan una base PostgreSQL de pruebas, se borran sus tablas): `cd chatbot && TEST_DATABASE_URL=postgresql://… python -m pytest`.
 
-En el panel de **Whapi.Cloud → tu canal → Webhooks** agrega `https://TU-URL.ngrok-free.app/webhook`
-con el evento **messages · post**.
+## Variables de entorno (sin valores; ver `chatbot/.env.example`)
 
-## Archivos
+`WHAPI_TOKEN`, `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`/`DATABASE_URL`; opcionales: `PILOTO_NUMEROS` (usuarios piloto, RN-08),
+`PUNTOS_BASE`/`PUNTOS_POR_KG` (regla de puntos de demostración, **no oficial**), `BACKEND_URL`/`BACKEND_API_KEY`
+(backend real), `STT_API_KEY`/`STT_URL`/`STT_MODEL`/`STT_LANGUAGE` (transcripción de audios), `API_KEY`, `CORS_ORIGINS`,
+`MAX_FOTO_MB`, `CLAUDE_MODEL`, `PORT`.
+
+## Uso de IA (punto 9 del reto)
+
+- **Qué hace:** identifica los residuos de una **foto** (`vision.py`) o de lo que la persona cuenta (`segmentar.py`) con Claude y sugiere orgánico/reciclable para cada uno. Sin `ANTHROPIC_API_KEY`, el texto se separa y clasifica con palabras clave.
+- **Datos enviados:** a Claude, solo la imagen o la frase sobre los residuos; a la API de transcripción, el **audio** de la persona (puede contener su voz). Nunca nombre, teléfono ni dirección. Avisar de esto en la política de datos.
+- **Controles:** la persona confirma o corrige el tipo antes de crear la solicitud; el coordinador revisa; si la foto no se ve, se pide otra; la IA **no** asigna, programa ni cierra.
+
+## API REST
+
+`/api/v1` sirve al bot, a una app o a una web y es el contrato del backend: ver [`docs/API.md`](docs/API.md) y
+[`docs/CONTRATO_BACKEND.md`](docs/CONTRATO_BACKEND.md).
+
+## Archivos (`chatbot/`)
 
 | Archivo | Qué hace |
 |---|---|
-| `chatbot/app.py` | Servidor Flask: webhook `/webhook`, API `/api/v1` y `/health` |
-| `chatbot/core.py` | **Núcleo independiente del canal** (ID único, texto → foto) |
-| `chatbot/api.py` | API REST para apps y webs (API key y CORS opcionales) |
-| `chatbot/bot.py` | Adaptador de WhatsApp: mensajes de Whapi ⇄ `core` |
-| `chatbot/clasificador.py` | Clasificación por texto (palabras clave, editables en `PALABRAS`) |
-| `chatbot/vision.py` | Identificación por foto con la API de Claude |
-| `chatbot/whapi.py` | Enviar mensajes y descargar imágenes de Whapi.Cloud |
-| `chatbot/db.py` | Base de datos de solicitudes |
-| `chatbot/test_bot.py`, `test_api.py` | Pruebas automáticas |
+| `app.py` | Servidor Flask: webhook `/webhook`, API `/api/v1` y `/health` |
+| `bot.py` | Adaptador de WhatsApp (Whapi) ⇄ conversación |
+| `conversacion.py` | Flujo paso a paso del chat, piloto y privacidad |
+| `core.py` | **Backend provisional**: reglas RN-01…RN-06, estados, historial, puntos |
+| `backend.py` | Elige backend provisional o real (`BACKEND_URL`) |
+| `notificar.py` | Avisos por WhatsApp (recibida, asignada, programada, recolectada, cancelada) |
+| `api.py` | API REST `/api/v1` |
+| `db.py` | PostgreSQL con SQLAlchemy (solicitudes, historial, conversaciones) |
+| `clasificador.py`, `segmentar.py`, `vision.py` | Clasificación por palabras clave, separación de varios residuos y foto (Claude) |
+| `transcripcion.py` | Audio → texto (API compatible con OpenAI/Groq Whisper) |
+| `contenido.py` | Contenido educativo de ejemplo (lo reemplaza el del administrador) |
+| `whapi.py` | Enviar mensajes y descargar imágenes y audios de Whapi |
+| `test_*.py` | Pruebas automáticas (74) |
 
-## Notas
+## Límites conocidos
 
-- Nunca subas el archivo `.env` (ya está en `.gitignore`).
-- El canal de prueba de Whapi tiene límites (150 mensajes, 5 chats distintos y una duración de 5 días).
-- Para ampliar el vocabulario del clasificador de texto, agrega palabras en `PALABRAS` de `clasificador.py`.
+- El canal de prueba de Whapi tiene límites (150 mensajes, 5 chats distintos) y es una conexión no oficial.
+- La regla de puntos y el contenido educativo son de demostración hasta que los valide la Fundación.
+- La construcción de la imagen Docker no se pudo probar en el entorno de desarrollo (no había motor Docker); sí se probó la instalación de dependencias en un entorno limpio y la ejecución contra PostgreSQL.
+- Nunca subas el archivo `.env`.

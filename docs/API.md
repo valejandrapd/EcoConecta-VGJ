@@ -1,94 +1,88 @@
 # API REST de EcoConecta (`/api/v1`)
 
-Sirve para conectar cualquier app (móvil) o web con el clasificador de residuos. Es el mismo núcleo
-(`chatbot/core.py`) que usa el bot de WhatsApp, así que **las solicitudes de todos los canales viven en la
-misma tabla** y se consultan con el mismo código `RES-AAAAMMDD-NNNN`.
+Sirve al bot de WhatsApp, a una app o a una web. Es también el **contrato** que debe cumplir el backend real
+(ver [`CONTRATO_BACKEND.md`](CONTRATO_BACKEND.md)). Todas las respuestas son JSON; los errores son `{"error": "mensaje"}`.
 
-## Configuración (variables de entorno, todas opcionales)
+**Configuración opcional:** `API_KEY` (si se define, enviar cabecera `X-API-Key`), `CORS_ORIGINS` (orígenes web permitidos o `*`),
+`MAX_FOTO_MB` (por defecto 8). Una clave puesta en el JavaScript de una web pública la puede ver cualquiera: desde webs públicas
+llama a la API a través de tu backend.
 
-| Variable | Para qué |
-|---|---|
-| `API_KEY` | Si se define, cada petición debe traer `X-API-Key: <valor>`. **Actívala en producción.** |
-| `CORS_ORIGINS` | Orígenes web permitidos, separados por coma (`https://miweb.com`) o `*`. |
-| `MAX_FOTO_MB` | Tamaño máximo de la foto (por defecto 8). |
-| `ANTHROPIC_API_KEY` | Necesaria para identificar por foto. |
+## Identificar el residuo (no guarda nada)
 
-> Si la API se llama desde una app móvil o desde un servidor, la `API_KEY` va en esa app/servidor.
-> Una clave puesta en JavaScript de una web pública la puede ver cualquiera: para webs públicas, llama a la
-> API desde tu backend o limita con `CORS_ORIGINS` y añade tu propia autenticación de usuarios.
-
-## Respuesta (objeto solicitud)
+`POST /clasificar` — JSON `{"texto": "cáscara de banano"}` o `multipart/form-data` con `foto` (JPG, PNG, WEBP o GIF).
 
 ```json
-{
-  "codigo": "RES-20261120-0001",
-  "estado": "resuelta",            // "resuelta" | "esperando_foto"
-  "categoria": "ORGANICO",         // ORGANICO | RECICLABLE | OTRO | null (si falta la foto)
-  "metodo": "texto",               // "texto" | "foto" | null
-  "objeto": "",                    // nombre del residuo si se identificó por foto
-  "descripcion": "cáscara de banano",
-  "contacto": "user-123",
-  "canal": "api",
-  "creada": "2026-11-20T17:00:00+00:00",
-  "necesita_foto": false,          // true => la app debe pedir (o repetir) la foto
-  "foto_ilegible": false           // true => la última foto no permitió distinguir el residuo
-}
+{"categoria": "ORGANICO", "metodo": "texto", "objeto": "", "necesita_foto": false, "foto_ilegible": false}
+```
+`categoria`: `ORGANICO | RECICLABLE | OTRO | null`. Si no se sabe, `necesita_foto: true`; si la foto no se ve, `foto_ilegible: true`.
+Es una **sugerencia**: la persona debe confirmarla.
+
+## Varios residuos a la vez (no guarda nada)
+
+`POST /segmentar` — JSON `{"texto": "cáscaras de banano y hojas de papel"}` o `multipart/form-data` con `foto` (puede mostrar
+varios residuos; en el celular un `<input type="file" accept="image/*" capture="environment">` abre la **cámara**) o `audio`
+(`ogg`, `mp3`, `m4a`, `webm`, `wav`; se transcribe: requiere `STT_API_KEY`, si no responde `503`).
+
+```json
+{"metodo": "texto",
+ "items": [{"objeto": "cáscaras de banano", "categoria": "ORGANICO"}, {"objeto": "hojas de papel", "categoria": "RECICLABLE"}],
+ "grupos": {"ORGANICO": ["cáscaras de banano"], "RECICLABLE": ["hojas de papel"], "OTRO": [], "DUDA": []}}
+```
+Con `audio` incluye además `"transcripcion"`. `DUDA` = no se pudo decidir: pregúntale a la persona. `OTRO` = no aprovechable
+(no genera solicitud). Es una **sugerencia**: confírmala con la persona y luego crea **una solicitud por cada tipo**
+(`POST /solicitudes` con `categoria` y `objeto`) usando la misma dirección y disponibilidad. El contrato del backend no cambia.
+
+## Solicitudes
+
+`POST /solicitudes` — crea y enruta (RN-01). Campos mínimos: `contacto, generador (hogar|negocio), categoria (ORGANICO|RECICLABLE), direccion, disponibilidad`.
+Opcionales: `observaciones, canal, objeto, metodo`. Devuelve `201` con la solicitud.
+
+```json
+{"codigo": "RES-20261120-0001", "contacto": "573001112233", "canal": "whatsapp", "generador": "negocio",
+ "categoria": "ORGANICO", "flujo": "huerteros", "estado": "recibida", "direccion": "Calle 1 #2-3",
+ "disponibilidad": "mañanas", "observaciones": "", "coordinador": null, "recolector": null,
+ "dia": null, "hora": null, "programacion": null, "cantidad_kg": null, "puntos": 0,
+ "creada": "2026-11-20T17:00:00+00:00", "actualizada": "2026-11-20T17:00:00+00:00",
+ "historial": [{"estado": "recibida", "actor": "whatsapp", "detalle": "Solicitud registrada", "fecha": "..."}]}
 ```
 
-## Endpoints
+`GET /solicitudes/{codigo}[?contacto=X]` — detalle e historial; con `contacto`, `404` si no es suya (RN-07).
+`GET /solicitudes?contacto=&flujo=&estado=&limite=50` — listado (más recientes primero; sirve de bandeja por `flujo` y `estado`).
+`GET /puntos/{contacto}` — `{"contacto": "...", "puntos": 20}`.
 
-### `POST /api/v1/solicitudes` — crear solicitud
-- **JSON** `{"contacto": "user-123", "texto": "cáscara de banano", "canal": "web"}` → `201`.
-  Si el texto no alcanza, `necesita_foto` viene en `true`.
-- **multipart/form-data** con `contacto` y `foto` (y opcionalmente `texto`) → identifica por cámara en la misma petición.
+## Gestión (PROVISIONAL: lo hará el panel del backend real)
 
-`contacto` es quien pide: id de usuario de tu app, teléfono, correo… (texto libre). `canal` es opcional
-(`api` por defecto; usa `web`, `app`, etc. para distinguir).
+| Endpoint | Body | Regla |
+|---|---|---|
+| `POST /solicitudes/{codigo}/asignar` | `coordinador, recolector` | RN-03 |
+| `POST /solicitudes/{codigo}/programar` | `dia, hora, recolector?` | RN-02: sin día, hora y persona no queda programada |
+| `POST /solicitudes/{codigo}/recolectar` | `cantidad_kg` | RN-05/06: solo si estaba programada; calcula puntos |
+| `POST /solicitudes/{codigo}/cancelar` | `motivo` | |
+| `POST /notificar` | `codigo` | Avisa por WhatsApp el estado actual (lo usa el backend real) |
 
-### `POST /api/v1/solicitudes/{codigo}/foto` — completar con la foto
-multipart con el archivo `foto` (JPG, PNG, WEBP o GIF). Devuelve la solicitud resuelta (o `foto_ilegible: true`).
-
-### `GET /api/v1/solicitudes/{codigo}` — consultar
-### `GET /api/v1/solicitudes?contacto=user-123&limite=50` — listar (más recientes primero)
+Estados: `recibida · en_revision · asignada · programada · recolectada · cancelada`. Un cambio no permitido responde `409`.
 
 ## Errores
 
-`400` datos inválidos · `401` API key · `404` solicitud inexistente · `413` foto muy grande ·
-`502` falló la IA (la solicitud sigue pendiente; reintenta). Cuerpo: `{"error": "mensaje"}`.
+`400` datos inválidos · `401` API key · `404` no existe (o no es tuya) · `409` transición no permitida · `413` foto muy grande ·
+`502` falló la IA (reintenta).
 
 ## Ejemplos
 
 ```bash
-# Texto
-curl -X POST http://localhost:5000/api/v1/solicitudes \
-  -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
-  -d '{"contacto":"user-123","texto":"botella de plástico","canal":"web"}'
+curl -X POST http://localhost:5000/api/v1/solicitudes -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
+  -d '{"contacto":"user-123","canal":"web","generador":"hogar","categoria":"RECICLABLE","direccion":"Calle 9 #8-7","disponibilidad":"tardes"}'
 
-# Foto
-curl -X POST http://localhost:5000/api/v1/solicitudes \
-  -H "X-API-Key: $API_KEY" -F contacto=user-123 -F foto=@residuo.jpg
+curl -X POST http://localhost:5000/api/v1/clasificar -H "X-API-Key: $API_KEY" -F foto=@residuo.jpg
+
+curl -X POST http://localhost:5000/api/v1/segmentar -H "X-API-Key: $API_KEY" -F audio=@nota.ogg
 ```
 
 ```js
-// Web / app (fetch)
-const r = await fetch(`${BASE}/api/v1/solicitudes`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json", "X-API-Key": KEY },
-  body: JSON.stringify({ contacto: usuario.id, texto, canal: "web" }),
-});
-let s = await r.json();
-if (s.necesita_foto) {
-  const f = new FormData(); f.append("foto", archivo);
-  s = await (await fetch(`${BASE}/api/v1/solicitudes/${s.codigo}/foto`,
-        { method: "POST", headers: { "X-API-Key": KEY }, body: f })).json();
-}
-```
-
-## Usarlo sin HTTP (Python)
-
-```python
-import core, vision
-r = core.registrar_texto("user-123", "cáscara de banano", canal="app")
-if r["necesita_foto"]:
-    r = core.adjuntar_foto("user-123", bytes_foto, "image/jpeg", vision.clasificar_foto, codigo=r["codigo"])
+// Web / app: primero sugerir el tipo, la persona confirma, luego crear
+const sug = await (await fetch(`${BASE}/api/v1/clasificar`, { method: "POST", body: formConFoto })).json();
+const s = await (await fetch(`${BASE}/api/v1/solicitudes`, {
+  method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": KEY },
+  body: JSON.stringify({ contacto: usuario.id, canal: "web", generador: "hogar", categoria: sug.categoria,
+                         direccion, disponibilidad }) })).json();
 ```
