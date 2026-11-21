@@ -19,7 +19,7 @@ from .mensajeria import registrar_entrante
 log = logging.getLogger("ecoconecta.webhook")
 router = APIRouter()
 
-TIPOS = {"text": "texto", "image": "imagen"}
+TIPOS = {"text": "texto", "image": "imagen", "audio": "audio"}
 
 
 @router.get("/webhook", response_class=PlainTextResponse)

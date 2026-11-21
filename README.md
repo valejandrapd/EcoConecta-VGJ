@@ -150,6 +150,8 @@ El menú hamburguesa tiene **Escríbenos por WhatsApp**: abre el chat del bot o 
 | Derivación a una persona (lo pide el usuario, o el bot no entiende dos veces seguidas). Se registra en la bandeja de la coordinación de huerta o de reciclaje | Implementado (`casos_coordinacion`) |
 | Notificaciones `solicitud_recibida`, `nueva_solicitud` y `solicitud_programada` (día, hora y persona) | Implementado. Texto dentro de la ventana de 24 h, plantilla fuera de ella |
 | Crear la solicitud completa por chat | Implementado (`app/whatsapp/solicitud_bot.py`). La opción *2* sigue los mismos 8 pasos del asistente web con menú numérico: tipo (o "No estoy seguro" con texto o foto), consejos, tamaño, días, horario, dirección (la de siempre, una guardada o una nueva con zona y nombre), puntos y resumen con nota opcional. *atrás* vuelve un paso y *menú* sale sin crear nada. El borrador vive en `conversaciones_whatsapp.borrador` y se borra al terminar o a las 6 h |
+| Varios residuos en un mensaje (*cáscaras de banano y hojas de papel*) | Implementado (`app/ia/segmentar.py`, idea del bot de `chatbot/`). En "No estoy seguro" separa los residuos por tipo y crea **una solicitud por tipo**: la segunda solo pregunta consejos y tamaño y reutiliza días, horario, dirección y puntos |
+| Notas de voz | Implementado (`app/ia/transcripcion.py`) con Azure OpenAI (`gpt-4o-mini-transcribe` o `whisper`, variable `AZURE_OPENAI_STT_DEPLOYMENT`). El texto sigue el mismo camino que un mensaje escrito. El audio y la transcripción no se guardan. Sin ese despliegue, el bot pide escribir |
 
 ### Configuración en Meta
 

@@ -12,7 +12,7 @@ from sqlalchemy import select
 from .. import telefono
 from ..config import config
 from ..db import sesion
-from ..ia import cascada
+from ..ia import cascada, transcripcion
 from ..ia.imagen import ImagenInvalida
 from ..ia.modelo import IANoDisponible
 from ..ia.reglas import normalizar
@@ -67,6 +67,8 @@ def _procesar(s, mensaje: dict):
         r = _texto(s, (mensaje.get("text") or {}).get("body", ""), usuario, conv)
     elif tipo == "image":
         r = _imagen(s, mensaje.get("image") or {}, usuario, conv)
+    elif tipo == "audio":
+        r = _audio(s, mensaje.get("audio") or {}, usuario, conv)
     else:
         r = Respuesta(textos.SOLO_TEXTO_FOTO, "no_soportado")
 
@@ -187,6 +189,29 @@ def _imagen(s, imagen: dict, usuario, conv) -> Respuesta:
     if len(sug.flujos) == 1:
         conv.ultimo_flujo = sug.flujos[0]
     return Respuesta(textos.sugerencia(sug), "clasificar_modelo_vision")
+
+
+# ---------------------------------------------------------------- audio
+def _audio(s, audio: dict, usuario, conv) -> Respuesta:
+    """Nota de voz: se transcribe y el texto sigue el mismo camino que un mensaje escrito.
+
+    El audio no se guarda y su transcripción tampoco (en `mensajes_whatsapp` solo quedan metadatos).
+    """
+    if not transcripcion.disponible():
+        return Respuesta(textos.SOLO_TEXTO_FOTO, "audio_no_soportado")
+    try:
+        datos = obtener_cliente().descargar_media(audio.get("id", ""))
+        texto = transcripcion.transcribir(datos, audio.get("mime_type") or "audio/ogg")
+    except (ErrorWhatsApp, IANoDisponible):
+        return Respuesta(textos.AUDIO_NO_ENTENDIDO, "audio_contingencia")
+    finally:
+        datos = None
+    if not texto:
+        return Respuesta(textos.AUDIO_NO_ENTENDIDO, "audio_vacio", entendido=False)
+    r = _texto(s, texto, usuario, conv)
+    r.texto = f"🎤 _Entendí: «{texto[:200]}»_\n\n" + r.texto
+    r.intencion = f"audio_{r.intencion}"
+    return r
 
 
 # ---------------------------------------------------------------- estado (RN-07)

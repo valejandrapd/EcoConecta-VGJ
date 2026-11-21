@@ -11,7 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 
-from ..ia import cascada
+from ..ia import cascada, segmentar
 from ..ia.imagen import ImagenInvalida
 from ..ia.modelo import IANoDisponible
 from ..ia.reglas import normalizar
@@ -208,6 +208,10 @@ def _p_duda(s, usuario, b):
 def _r_duda(s, usuario, conv, b, cuerpo, t):
     if t in {"1", "2"}:  # cambió de opinión y eligió el tipo
         return _r_tipo(s, usuario, conv, b, cuerpo, t)
+    if len(segmentar.partes(cuerpo)) >= 2:  # "cáscaras y papel": una solicitud por tipo
+        grupos = segmentar.agrupar(cuerpo)
+        if segmentar.es_mezcla(grupos):
+            return _dos_solicitudes(s, usuario, conv, b, grupos)
     try:
         sug = cascada.sugerir_texto(cuerpo)
     except IANoDisponible:
@@ -232,6 +236,20 @@ def _resultado_duda(s, usuario, conv, b, sug) -> Paso:
                          "EcoConecta no lo recoge. Si tienes otra cosa, elige el tipo:")
     return Paso("No logré identificarlo. Envíame una *foto* 📷 o elige: *1* orgánicos, *2* reciclables." + PIE,
                 "sol_duda_repetir")
+
+
+def _dos_solicitudes(s, usuario, conv, b, grupos) -> Paso:
+    """Orgánicos y reciclables en el mismo mensaje: primero la de orgánicos y luego la otra."""
+    b["flujo"], b["pendiente"] = "organico", "reciclable"
+    conv.ultimo_flujo = "organico"
+    lineas = [f"🟢 *Orgánicos:* {', '.join(grupos['organico'])}", f"🔵 *Reciclables:* {', '.join(grupos['reciclable'])}"]
+    if grupos["otro"]:
+        lineas.append(f"⚪ *No los recogemos:* {', '.join(grupos['otro'])}")
+    return _ir(s, usuario, conv, b, "consejos", antes=(
+        "Encontré dos tipos de residuo:\n" + "\n".join(lineas) + "\n\n"
+        "Cada tipo lo atiende un equipo distinto, así que haremos *una solicitud por tipo*. "
+        "Empezamos con los orgánicos y luego te pregunto solo lo que cambia para los reciclables."
+        "\n_Es una ayuda automática: tú eliges y la coordinación confirma._"))
 
 
 # consejos --------------------------------------------------------------
@@ -259,6 +277,9 @@ def _r_tamano(s, usuario, conv, b, cuerpo, t):
     if not elegido:
         return _otra_vez(s, usuario, conv, b, "tamano")
     b["tamano"] = elegido
+    if b.get("reusar"):  # segunda solicitud de una mezcla: mismos días, horario, dirección y puntos
+        b.update(b.pop("reusar"))
+        return _ir(s, usuario, conv, b, "resumen")
     return _ir(s, usuario, conv, b, "dias")
 
 
@@ -516,6 +537,13 @@ def _crear(s, usuario, conv, b) -> Paso:
                     "sol_error")
     salir(conv)
     conv.ultimo_flujo = sol.flujo
+    if b.get("pendiente"):
+        reusar = {k: b[k] for k in ("dias", "desde", "hasta", "direccion", "etiqueta", "zona", "bonificacion", "nota")
+                  if k in b}
+        siguiente = {"flujo": b["pendiente"], "reusar": reusar}
+        return _ir(s, usuario, conv, siguiente, "consejos", antes=(
+            f"🎉 *¡Solicitud creada!* Tu código es *{sol.codigo}*.\n\n"
+            f"Ahora la de *{NOMBRE_FLUJO[b['pendiente']]}*. Uso los mismos días, horario, dirección y puntos."))
     return Paso(f"🎉 *¡Solicitud creada!*\nTu código es *{sol.codigo}*.\n\n"
                 "La coordinación la revisará y te avisaremos por aquí el día, la hora y quién la recogerá. "
                 "Para consultarla, escribe el código.\n\nEscribe *menú* para volver al inicio.", "sol_creada")

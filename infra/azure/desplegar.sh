@@ -133,6 +133,26 @@ if [ "${IA_PROVEEDOR:-}" = "azure_openai" ] && [ "${CREAR_AZURE_OPENAI:-0}" = "1
         echo "No pude desplegar el modelo. Revisa la cuota en Azure AI Foundry; sigo sin IA."
       fi
     fi
+    # Notas de voz (opcional): un modelo de transcripción en el mismo recurso. Si no hay cuota, el bot sigue sin audios.
+    if [ "${ACTIVAR_AUDIO:-1}" = "1" ]; then
+      DEPLOY_STT="${AZURE_OPENAI_STT_DEPLOYMENT:-transcripcion}"
+      if ! az cognitiveservices account deployment show -g "$GRUPO" -n "$AOAI" --deployment-name "$DEPLOY_STT" -o none 2>/dev/null; then
+        for CANDIDATO_STT in "gpt-4o-mini-transcribe|2025-03-20|GlobalStandard" "whisper|001|Standard"; do
+          IFS='|' read -r MODELO_STT VERSION_STT SKU_STT <<< "$CANDIDATO_STT"
+          if az cognitiveservices account deployment create -g "$GRUPO" -n "$AOAI" \
+               --deployment-name "$DEPLOY_STT" --model-name "$MODELO_STT" --model-version "$VERSION_STT" \
+               --model-format OpenAI --sku-name "$SKU_STT" --sku-capacity 1 --only-show-errors -o none 2>/dev/null; then
+            echo "Audios: $MODELO_STT desplegado como $DEPLOY_STT."
+            break
+          fi
+        done
+      fi
+      if az cognitiveservices account deployment show -g "$GRUPO" -n "$AOAI" --deployment-name "$DEPLOY_STT" -o none 2>/dev/null; then
+        AZURE_OPENAI_STT_DEPLOYMENT="$DEPLOY_STT"; guardar AZURE_OPENAI_STT_DEPLOYMENT "$DEPLOY_STT"
+      else
+        echo "No hay cuota para transcribir audios en $REGION_IA. Sigo sin audios (texto y fotos funcionan)."
+      fi
+    fi
     AZURE_OPENAI_ENDPOINT="$(az cognitiveservices account show -g "$GRUPO" -n "$AOAI" --query properties.endpoint -o tsv)"
     AZURE_OPENAI_API_KEY="$(az cognitiveservices account keys list -g "$GRUPO" -n "$AOAI" --query key1 -o tsv)"
   fi
@@ -196,6 +216,7 @@ agregar_secreto anthropic-api-key ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
 agregar_secreto azure-openai-key AZURE_OPENAI_API_KEY "${AZURE_OPENAI_API_KEY:-}"
 [ -z "${IA_PROVEEDOR:-}" ] || ENV_BACK+=("IA_PROVEEDOR=$IA_PROVEEDOR")
 [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || ENV_BACK+=("AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" "AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4.1-mini}" "AZURE_OPENAI_API_VERSION=$API_VERSION_IA")
+[ -z "${AZURE_OPENAI_STT_DEPLOYMENT:-}" ] || ENV_BACK+=("AZURE_OPENAI_STT_DEPLOYMENT=$AZURE_OPENAI_STT_DEPLOYMENT")
 agregar_secreto whatsapp-token WHATSAPP_TOKEN "${WHATSAPP_TOKEN:-}"
 agregar_secreto whatsapp-verify-token WHATSAPP_VERIFY_TOKEN "${WHATSAPP_VERIFY_TOKEN:-}"
 agregar_secreto whatsapp-app-secret WHATSAPP_APP_SECRET "${WHATSAPP_APP_SECRET:-}"

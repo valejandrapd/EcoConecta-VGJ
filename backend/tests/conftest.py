@@ -106,6 +106,8 @@ def mensaje(de, tipo="text", texto="hola", media_id="media-1", wamid=None):
         msg["text"] = {"body": texto}
     elif tipo == "image":
         msg["image"] = {"id": media_id, "mime_type": "image/jpeg"}
+    elif tipo == "audio":
+        msg["audio"] = {"id": media_id, "mime_type": "audio/ogg; codecs=opus", "voice": True}
     return {"object": "whatsapp_business_account", "entry": [{"id": "WABA", "changes": [{"field": "messages", "value": {
         "messaging_product": "whatsapp", "metadata": {"phone_number_id": "123"},
         "contacts": [{"wa_id": de, "profile": {"name": "Nombre"}}], "messages": [msg]}}]}]}

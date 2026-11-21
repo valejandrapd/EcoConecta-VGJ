@@ -43,6 +43,8 @@ class Config:
     azure_openai_api_key: str
     azure_openai_deployment: str
     azure_openai_api_version: str
+    # Despliegue de transcripción de audios (whisper o gpt-4o-mini-transcribe). Vacío = el bot no entiende audios
+    azure_openai_stt_deployment: str
     ia_modelo_texto: str
     ia_modelo_vision: str
     ia_timeout_s: float
@@ -103,6 +105,7 @@ def config() -> Config:
         azure_openai_api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
         azure_openai_deployment=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini"),
         azure_openai_api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+        azure_openai_stt_deployment=os.environ.get("AZURE_OPENAI_STT_DEPLOYMENT", ""),
         ia_modelo_texto=os.environ.get("IA_MODELO_TEXTO", modelo),
         ia_modelo_vision=os.environ.get("IA_MODELO_VISION", modelo),
         ia_timeout_s=_float("IA_TIMEOUT_S", 20),

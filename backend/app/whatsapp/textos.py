@@ -59,6 +59,7 @@ NO_ENTIENDO = "No te entendí 🤔. Escribe *menú* para ver lo que puedo hacer.
 SOLO_TEXTO_FOTO = "Por ahora entiendo *texto* y *fotos*. Escribe *menú* para ver las opciones."
 CONTINGENCIA_IA = ("No pude analizar tu residuo en este momento. Intenta de nuevo en unos minutos "
                    "o solicita la recolección directamente: {url}")
+AUDIO_NO_ENTENDIDO = "No logré entender tu audio 🎤. ¿Puedes escribirlo o enviarlo otra vez, más despacio?"
 CONTINGENCIA_FOTO = "No pude descargar tu foto. ¿Puedes enviarla otra vez?"
 FOTO_NO_CLARA = "No logro distinguir el residuo en la foto. Toma otra más cerca y con buena luz 📷"
 LIMITE = ("Alcanzaste el límite de mensajes de hoy. Mañana puedo seguir ayudándote, "
